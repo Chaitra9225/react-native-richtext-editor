@@ -113,12 +113,12 @@ class FloatingToolbar(context: Context) : LinearLayout(context) {
     private fun createArrowButton(text: String): TextView {
         return TextView(context).apply {
             this.text = text
-            textSize = 24f
+            textSize = 20f
             setTextColor(Color.parseColor("#FFFFFF"))
             gravity = Gravity.CENTER
             isClickable = true
             isFocusable = true
-            val params = LayoutParams((32 * density).toInt(), ViewGroup.LayoutParams.MATCH_PARENT)
+            val params = LayoutParams((16 * density).toInt(), ViewGroup.LayoutParams.MATCH_PARENT)
             layoutParams = params
             // Add touch feedback
             val bg = GradientDrawable().apply {
@@ -190,7 +190,7 @@ class FloatingToolbar(context: Context) : LinearLayout(context) {
     }
 
     private val iconSize = (20 * density).toInt()
-    private val iconPadding = (8 * density).toInt()
+    private val iconPadding = (10 * density).toInt()
 
     private fun createButton(option: String): ImageView? {
         val drawableResId = getDrawableResId(option)
@@ -290,7 +290,7 @@ class FloatingToolbar(context: Context) : LinearLayout(context) {
         val screenWidth = context.resources.displayMetrics.widthPixels
         val maxWidth = (screenWidth * 0.9).toInt()
         val buttonCount = enabledOptions.size
-        val calculatedWidth = (buttonCount * buttonSize) + ((buttonCount - 1) * buttonSpacing) + (56 * density).toInt()
+        val calculatedWidth = (buttonCount * buttonSize) + ((buttonCount - 1) * buttonSpacing) + (48 * density).toInt()
         return minOf(calculatedWidth, maxWidth)
     }
 

@@ -1,7 +1,7 @@
 {
   "name": "@chaitrabhairappa/react-native-rich-text-editor",
-  "version": "1.0.7",
-  "description": "A powerful native rich text editor for React Native with support for text formatting, lists, and more",
+  "version": "2.0.0",
+  "description": "A high-performance native rich text editor for React Native (New Architecture / Fabric only)",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
   "types": "lib/typescript/src/index.d.ts",
@@ -33,6 +33,10 @@
     "editor",
     "wysiwyg",
     "text-formatting",
+    "fabric",
+    "new-architecture",
+    "turbomodules",
+    "jsi",
     "ios",
     "android"
   ],
@@ -59,8 +63,13 @@
     "typescript": "^5.0.0"
   },
   "peerDependencies": {
-    "react": "*",
-    "react-native": "*"
+    "react": ">=18.2.0",
+    "react-native": ">=0.73.0"
+  },
+  "peerDependenciesMeta": {
+    "react-native": {
+      "newArchitectureRequired": true
+    }
   },
   "react-native-builder-bob": {
     "source": "src",

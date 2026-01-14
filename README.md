@@ -27,6 +27,37 @@ Unlike other rich text editor packages that rely on HTML and WebView, this libra
 - Floating toolbar with customizable options
 - Two variants: outlined and flat
 - Auto-growing height
+- **Delta-based content updates** for optimized performance
+- **Synchronous style detection** via `onActiveStylesChange`
+
+## Why Delta-Based Updates?
+
+Unlike other editors that send the **entire document** on every keystroke, this library includes **delta information** — only what changed.
+
+```typescript
+onContentChange={(event) => {
+  // Full content (for saving)
+  console.log(event.nativeEvent.text);
+  console.log(event.nativeEvent.blocks);
+
+  // Delta (for optimized processing)
+  console.log(event.nativeEvent.delta);
+  // { type: "insert", position: 50, text: "a" }
+}}
+```
+
+| Delta Type | When | Data |
+|------------|------|------|
+| `insert` | User types | `position`, `text` |
+| `delete` | User deletes | `position`, `length` |
+| `replace` | Selection replaced | `position`, `length`, `text` |
+| `format` | Style applied | `position`, `length`, `style` |
+
+**Benefits:**
+- **Server sync** — Send only deltas instead of full document
+- **Collaborative editing** — Apply remote changes efficiently
+- **Analytics** — Track exactly what users type/delete
+- **Performance** — Process small changes without parsing entire content
 
 ## Installation
 

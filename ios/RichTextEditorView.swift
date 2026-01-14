@@ -461,6 +461,7 @@ class RichTextView: UITextView {
     }
 }
 
+@objcMembers
 class RichTextEditorView: UIView, UITextViewDelegate {
     private static let defaultLineHeightMultiple: CGFloat = 1.3
 
@@ -538,9 +539,11 @@ class RichTextEditorView: UIView, UITextViewDelegate {
         }
     }
 
-    @objc var initialContent: [[String: Any]]? {
+    @objc var initialContentJson: String? {
         didSet {
-            if let blocks = initialContent {
+            if let jsonString = initialContentJson,
+               let data = jsonString.data(using: .utf8),
+               let blocks = try? JSONSerialization.jsonObject(with: data, options: []) as? [[String: Any]] {
                 setContent(blocks: blocks)
             }
         }
@@ -557,6 +560,7 @@ class RichTextEditorView: UIView, UITextViewDelegate {
     @objc var onEditorFocus: RCTDirectEventBlock?
     @objc var onEditorBlur: RCTDirectEventBlock?
     @objc var onSizeChange: RCTDirectEventBlock?
+    @objc var onActiveStylesChange: RCTDirectEventBlock?
 
     private var lastReportedHeight: CGFloat = 0
     private var calculatedHeight: CGFloat = 44
@@ -738,9 +742,112 @@ class RichTextEditorView: UIView, UITextViewDelegate {
         updateToolbarPosition()
         updateToolbarButtonStates()
 
+        emitActiveStyles()
+
         onSelectionChange?([
             "start": range.location,
             "end": range.location + range.length
+        ])
+    }
+
+    private func emitActiveStyles() {
+        guard let attributedText = textView.attributedText else { return }
+
+        let range = textView.selectedRange
+        let checkRange = range.length > 0 ? range : NSRange(location: max(0, range.location - 1), length: 1)
+
+        guard checkRange.location >= 0, checkRange.location < attributedText.length else {
+            onActiveStylesChange?([
+                "bold": false,
+                "italic": false,
+                "underline": false,
+                "strikethrough": false,
+                "code": false,
+                "highlight": false,
+                "blockType": "paragraph",
+                "alignment": "left"
+            ])
+            return
+        }
+
+        var hasBold = false
+        var hasItalic = false
+        var hasUnderline = false
+        var hasStrikethrough = false
+        var hasCode = false
+        var hasHighlight = false
+        var blockType = "paragraph"
+        var alignment = "left"
+
+        if let font = attributedText.attribute(.font, at: checkRange.location, effectiveRange: nil) as? UIFont {
+            let traits = font.fontDescriptor.symbolicTraits
+            hasBold = traits.contains(.traitBold)
+            hasItalic = traits.contains(.traitItalic)
+
+            if font.fontDescriptor.symbolicTraits.contains(.traitMonoSpace) ||
+               font.fontName.lowercased().contains("mono") ||
+               font.fontName.lowercased().contains("courier") {
+                hasCode = true
+            }
+        }
+
+        if let underlineStyle = attributedText.attribute(.underlineStyle, at: checkRange.location, effectiveRange: nil) as? Int,
+           underlineStyle != 0 {
+            hasUnderline = true
+        }
+
+        if let strikeStyle = attributedText.attribute(.strikethroughStyle, at: checkRange.location, effectiveRange: nil) as? Int,
+           strikeStyle != 0 {
+            hasStrikethrough = true
+        }
+
+        if let bgColor = attributedText.attribute(.backgroundColor, at: checkRange.location, effectiveRange: nil) as? UIColor {
+            var red: CGFloat = 0, green: CGFloat = 0, blue: CGFloat = 0, alpha: CGFloat = 0
+            bgColor.getRed(&red, green: &green, blue: &blue, alpha: &alpha)
+            if red > 0.8 && green > 0.8 && blue < 0.5 {
+                hasHighlight = true
+            }
+        }
+
+        let text = textView.text ?? ""
+        let lineRange = (text as NSString).lineRange(for: NSRange(location: range.location, length: 0))
+        let lineText = (text as NSString).substring(with: lineRange)
+
+        if lineText.hasPrefix("• ") {
+            blockType = "bullet"
+        } else if lineText.range(of: "^\\d+\\.\\s", options: .regularExpression) != nil {
+            blockType = "numbered"
+        } else if lineText.hasPrefix("☐ ") || lineText.hasPrefix("☑ ") {
+            blockType = "checklist"
+        } else if lineText.hasPrefix("\"") && lineText.hasSuffix("\"") {
+            blockType = "quote"
+        }
+
+        if let font = attributedText.attribute(.font, at: checkRange.location, effectiveRange: nil) as? UIFont,
+           font.pointSize > 20 {
+            blockType = "heading"
+        }
+
+        if let paragraphStyle = attributedText.attribute(.paragraphStyle, at: checkRange.location, effectiveRange: nil) as? NSParagraphStyle {
+            switch paragraphStyle.alignment {
+            case .center:
+                alignment = "center"
+            case .right:
+                alignment = "right"
+            default:
+                alignment = "left"
+            }
+        }
+
+        onActiveStylesChange?([
+            "bold": hasBold,
+            "italic": hasItalic,
+            "underline": hasUnderline,
+            "strikethrough": hasStrikethrough,
+            "code": hasCode,
+            "highlight": hasHighlight,
+            "blockType": blockType,
+            "alignment": alignment
         ])
     }
 
@@ -1023,9 +1130,14 @@ class RichTextEditorView: UIView, UITextViewDelegate {
 
     private func sendContentChange() {
         let blocks = getBlocksArray()
+        var blocksJson = "[]"
+        if let jsonData = try? JSONSerialization.data(withJSONObject: blocks, options: []),
+           let jsonString = String(data: jsonData, encoding: .utf8) {
+            blocksJson = jsonString
+        }
         onContentChange?([
             "text": textView.text ?? "",
-            "blocks": blocks
+            "blocksJson": blocksJson
         ])
     }
 
@@ -1067,7 +1179,6 @@ class RichTextEditorView: UIView, UITextViewDelegate {
         }
 
         if !hasMonospace {
-            // More visible code background - light gray with slight red tint
             let codeBackground = UIColor(red: 0.95, green: 0.93, blue: 0.93, alpha: 1.0)
             mutableAttrString.addAttribute(.backgroundColor, value: codeBackground, range: range)
             mutableAttrString.addAttribute(.foregroundColor, value: UIColor(red: 0.8, green: 0.2, blue: 0.2, alpha: 1.0), range: range)
@@ -1171,7 +1282,6 @@ class RichTextEditorView: UIView, UITextViewDelegate {
         let lineRange = NSRange(location: lineStart, length: lineEnd - lineStart)
         let lineText = nsText.substring(with: lineRange)
 
-        // Count leading whitespace (indentation)
         var leadingWhitespace = ""
         var contentStart = 0
         for char in lineText {

@@ -25,7 +25,19 @@ export interface ContentChangeEvent {
   nativeEvent: {
     text: string;
     blocks: Block[];
+    delta?: ContentDelta;
   };
+}
+
+export type DeltaType = 'insert' | 'delete' | 'format' | 'replace';
+
+export interface ContentDelta {
+  type: DeltaType;
+  position: number;
+  length?: number;
+  text?: string;
+  blockIndex?: number;
+  style?: string;
 }
 
 export interface SelectionChangeEvent {

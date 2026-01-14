@@ -45,6 +45,9 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
     private var minHeightPx: Float = 0f
     private var isInitialized = false
 
+    private var previousText: String = ""
+    private var pendingDelta: Map<String, Any>? = null
+
     // For flat variant bottom border
     private val bottomBorderPaint = Paint().apply {
         color = Color.parseColor("#E0E0E0")
@@ -112,13 +115,57 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         setupToolbar()
 
         addTextChangedListener(object : TextWatcher {
-            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
-            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            private var changeStart = 0
+            private var removedCount = 0
+            private var addedCount = 0
+
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {
+                changeStart = start
+                removedCount = count
+                addedCount = after
+            }
+
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
+                // Capture delta information
+                if (!isInternalChange && s != null) {
+                    val newText = s.toString()
+                    val deltaMap = mutableMapOf<String, Any>()
+
+                    when {
+                        removedCount == 0 && addedCount > 0 -> {
+                            // Insert
+                            deltaMap["type"] = "insert"
+                            deltaMap["position"] = changeStart
+                            deltaMap["text"] = newText.substring(start, start + count)
+                        }
+                        removedCount > 0 && addedCount == 0 -> {
+                            // Delete
+                            deltaMap["type"] = "delete"
+                            deltaMap["position"] = changeStart
+                            deltaMap["length"] = removedCount
+                        }
+                        removedCount > 0 && addedCount > 0 -> {
+                            // Replace
+                            deltaMap["type"] = "replace"
+                            deltaMap["position"] = changeStart
+                            deltaMap["length"] = removedCount
+                            deltaMap["text"] = newText.substring(start, start + count)
+                        }
+                    }
+
+                    if (deltaMap.isNotEmpty()) {
+                        pendingDelta = deltaMap
+                    }
+                }
+            }
+
             override fun afterTextChanged(s: Editable?) {
                 if (!isInternalChange) {
-                    sendContentChange()
+                    sendContentChangeWithDelta()
                     saveToUndoStack()
+                    pendingDelta = null
                 }
+                previousText = s?.toString() ?: ""
                 post { updateContentSize() }
             }
         })
@@ -213,6 +260,9 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         map.putInt("end", selEnd)
         sendEvent("onSelectionChange", map)
 
+        // Emit active styles synchronously for instant toolbar updates
+        emitActiveStyles()
+
         // Show/hide toolbar based on selection
         if (selStart != selEnd && showToolbar && hasFocus()) {
             android.util.Log.d("RichTextEditor", "Should show toolbar - selection exists")
@@ -229,6 +279,78 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         if (selStart != selEnd) {
             updateToolbarButtonStates()
         }
+    }
+
+    // Synchronous style detection - emits current active styles to JS
+    private fun emitActiveStyles() {
+        val start = selectionStart
+        val end = selectionEnd
+        val spannable = text as? Spanned
+
+        var hasBold = false
+        var hasItalic = false
+        var hasUnderline = false
+        var hasStrikethrough = false
+        var hasCode = false
+        var hasHighlight = false
+        var blockType = "paragraph"
+        var alignment = "left"
+
+        if (spannable != null && start <= end) {
+            // Check for style spans
+            spannable.getSpans(start, end.coerceAtLeast(start + 1), StyleSpan::class.java).forEach { span ->
+                when (span.style) {
+                    Typeface.BOLD -> hasBold = true
+                    Typeface.ITALIC -> hasItalic = true
+                    Typeface.BOLD_ITALIC -> {
+                        hasBold = true
+                        hasItalic = true
+                    }
+                }
+            }
+
+            hasUnderline = spannable.getSpans(start, end.coerceAtLeast(start + 1), UnderlineSpan::class.java).isNotEmpty()
+            hasStrikethrough = spannable.getSpans(start, end.coerceAtLeast(start + 1), StrikethroughSpan::class.java).isNotEmpty()
+            hasCode = spannable.getSpans(start, end.coerceAtLeast(start + 1), TypefaceSpan::class.java).any { it.family == "monospace" }
+
+            // Check highlight (but not code background)
+            val bgSpans = spannable.getSpans(start, end.coerceAtLeast(start + 1), BackgroundColorSpan::class.java)
+            hasHighlight = bgSpans.any {
+                val color = it.backgroundColor
+                color == Color.parseColor("#80FFFF00") || color == Color.YELLOW
+            }
+
+            // Check block type from line content
+            val lineText = getCurrentLineText()
+            blockType = when {
+                lineText.startsWith("• ") -> "bullet"
+                lineText.matches(Regex("^\\d+\\.\\s.*")) -> "numbered"
+                lineText.startsWith("☐ ") || lineText.startsWith("☑ ") -> "checklist"
+                lineText.startsWith("\"") && lineText.endsWith("\"") -> "quote"
+                spannable.getSpans(start, end.coerceAtLeast(start + 1), RelativeSizeSpan::class.java).any { it.sizeChange > 1.2f } -> "heading"
+                else -> "paragraph"
+            }
+
+            // Check alignment
+            spannable.getSpans(start, end.coerceAtLeast(start + 1), AlignmentSpan.Standard::class.java).firstOrNull()?.let { span ->
+                alignment = when (span.alignment) {
+                    Layout.Alignment.ALIGN_CENTER -> "center"
+                    Layout.Alignment.ALIGN_OPPOSITE -> "right"
+                    else -> "left"
+                }
+            }
+        }
+
+        val map = Arguments.createMap()
+        map.putBoolean("bold", hasBold)
+        map.putBoolean("italic", hasItalic)
+        map.putBoolean("underline", hasUnderline)
+        map.putBoolean("strikethrough", hasStrikethrough)
+        map.putBoolean("code", hasCode)
+        map.putBoolean("highlight", hasHighlight)
+        map.putString("blockType", blockType)
+        map.putString("alignment", alignment)
+        sendEvent("onActiveStylesChange", map)
     }
 
     private val hideToolbarRunnable = Runnable {
@@ -583,14 +705,42 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
     }
 
     private fun sendContentChange() {
+        sendContentChangeWithDelta(null)
+    }
+
+    private fun sendContentChangeWithDelta(delta: Map<String, Any>? = pendingDelta) {
         try {
             val map = Arguments.createMap()
             map.putString("text", text?.toString() ?: "")
-            map.putArray("blocks", getBlocksArray())
+            // Serialize blocks to JSON string (codegen doesn't support nested arrays)
+            map.putString("blocksJson", getBlocksJsonString())
+
+            // Include delta information if available
+            if (delta != null) {
+                val deltaMap = Arguments.createMap()
+                delta["type"]?.let { deltaMap.putString("type", it as String) }
+                delta["position"]?.let { deltaMap.putInt("position", it as Int) }
+                delta["length"]?.let { deltaMap.putInt("length", it as Int) }
+                delta["text"]?.let { deltaMap.putString("text", it as String) }
+                delta["style"]?.let { deltaMap.putString("style", it as String) }
+                map.putMap("delta", deltaMap)
+            }
+
             sendEvent("onContentChange", map)
         } catch (e: Exception) {
             e.printStackTrace()
         }
+    }
+
+    // Send format delta when applying styles
+    private fun sendFormatDelta(style: String, start: Int, end: Int) {
+        val delta = mapOf(
+            "type" to "format",
+            "position" to start,
+            "length" to (end - start),
+            "style" to style
+        )
+        sendContentChangeWithDelta(delta)
     }
 
     private fun saveToUndoStack() {
@@ -717,6 +867,19 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
 
     fun getTextContent(): String = text.toString()
 
+    // Fabric command response methods
+    fun emitGetTextResponse() {
+        val map = Arguments.createMap()
+        map.putString("text", text?.toString() ?: "")
+        sendEvent("onGetTextResponse", map)
+    }
+
+    fun emitGetBlocksResponse() {
+        val map = Arguments.createMap()
+        map.putArray("blocks", getBlocksArray())
+        sendEvent("onGetBlocksResponse", map)
+    }
+
     fun getBlocksArray(): WritableArray {
         val blocks = Arguments.createArray()
         val textContent = text?.toString() ?: ""
@@ -732,6 +895,23 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
             blocks.pushMap(block)
         }
         return blocks
+    }
+
+    fun getBlocksJsonString(): String {
+        val textContent = text?.toString() ?: ""
+        if (textContent.isEmpty()) {
+            return "[]"
+        }
+        val jsonArray = org.json.JSONArray()
+        val lines = textContent.split("\n")
+        lines.forEach { line ->
+            val block = org.json.JSONObject()
+            block.put("type", "paragraph")
+            block.put("text", line)
+            block.put("styles", org.json.JSONArray())
+            jsonArray.put(block)
+        }
+        return jsonArray.toString()
     }
 
     fun clearContent() {

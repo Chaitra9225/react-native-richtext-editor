@@ -11,9 +11,16 @@ Pod::Spec.new do |s|
   s.authors      = package["author"]
 
   s.platforms    = { :ios => "13.0" }
-  s.source       = { :git => "https://github.com/yourusername/react-native-richtext-editor.git", :tag => "#{s.version}" }
+  s.source       = { :git => "https://github.com/Chaitra9225/react-native-richtext-editor.git", :tag => "#{s.version}" }
 
-  s.source_files = "ios/**/*.{h,m,mm,swift}"
+  # Only include Swift and ObjC files for Paper ViewManager (no C++ files)
+  s.source_files = "ios/**/*.{swift,m}"
+
+  # Explicitly disable module creation to avoid C++ header conflicts
+  s.pod_target_xcconfig = {
+    'DEFINES_MODULE' => 'NO',
+    'CLANG_ENABLE_MODULES' => 'NO'
+  }
 
   s.dependency "React-Core"
 
