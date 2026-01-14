@@ -1,0 +1,125 @@
+import type { StyleProp, ViewStyle } from 'react-native';
+
+export interface StyleRange {
+  style: 'bold' | 'italic' | 'underline' | 'strikethrough' | 'link' | 'code' | 'highlight';
+  start: number;
+  end: number;
+  url?: string;
+  highlightColor?: string;
+}
+
+export type BlockType = 'paragraph' | 'bullet' | 'numbered' | 'heading' | 'quote' | 'checklist';
+export type TextAlignment = 'left' | 'center' | 'right';
+export type EditorVariant = 'outlined' | 'flat';
+
+export interface Block {
+  type: BlockType;
+  text: string;
+  styles: StyleRange[];
+  alignment?: TextAlignment;
+  checked?: boolean;
+  indentLevel?: number;
+}
+
+export interface ContentChangeEvent {
+  nativeEvent: {
+    text: string;
+    blocks: Block[];
+  };
+}
+
+export interface SelectionChangeEvent {
+  nativeEvent: {
+    start: number;
+    end: number;
+  };
+}
+
+export type ToolbarOption =
+  | 'bold'
+  | 'italic'
+  | 'strikethrough'
+  | 'underline'
+  | 'code'
+  | 'highlight'
+  | 'heading'
+  | 'bullet'
+  | 'numbered'
+  | 'quote'
+  | 'checklist'
+  | 'link'
+  | 'undo'
+  | 'redo'
+  | 'clearFormatting'
+  | 'indent'
+  | 'outdent'
+  | 'alignLeft'
+  | 'alignCenter'
+  | 'alignRight';
+
+export const DEFAULT_TOOLBAR_OPTIONS: ToolbarOption[] = [
+  'bold',
+  'italic',
+  'underline',
+  'strikethrough',
+  'code',
+  'highlight',
+  'heading',
+  'bullet',
+  'numbered',
+  'quote',
+  'checklist',
+  'link',
+  'undo',
+  'redo',
+  'clearFormatting',
+  'indent',
+  'outdent',
+  'alignLeft',
+  'alignCenter',
+  'alignRight',
+];
+
+export interface RichTextEditorProps {
+  style?: StyleProp<ViewStyle>;
+  placeholder?: string;
+  initialContent?: Block[];
+  readOnly?: boolean;
+  maxHeight?: number;
+  showToolbar?: boolean;
+  toolbarOptions?: ToolbarOption[];
+  variant?: EditorVariant;
+  onContentChange?: (event: ContentChangeEvent) => void;
+  onSelectionChange?: (event: SelectionChangeEvent) => void;
+  onFocus?: () => void;
+  onBlur?: () => void;
+}
+
+export interface RichTextEditorRef {
+  setContent: (blocks: Block[]) => void;
+  getText: () => Promise<string>;
+  getBlocks: () => Promise<Block[]>;
+  clear: () => void;
+  focus: () => void;
+  blur: () => void;
+  toggleBold: () => void;
+  toggleItalic: () => void;
+  toggleUnderline: () => void;
+  toggleStrikethrough: () => void;
+  toggleCode: () => void;
+  toggleHighlight: (color?: string) => void;
+  setHeading: () => void;
+  setBulletList: () => void;
+  setNumberedList: () => void;
+  setQuote: () => void;
+  setChecklist: () => void;
+  setParagraph: () => void;
+  insertLink: (url: string, text: string) => void;
+  undo: () => void;
+  redo: () => void;
+  clearFormatting: () => void;
+  indent: () => void;
+  outdent: () => void;
+  setAlignment: (alignment: TextAlignment) => void;
+  toggleChecklistItem: () => void;
+}

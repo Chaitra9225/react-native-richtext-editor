@@ -1,0 +1,79 @@
+{
+  "name": "@chaitrabhairappa/react-native-rich-text-editor",
+  "version": "1.0.6",
+  "description": "A powerful native rich text editor for React Native with support for text formatting, lists, and more",
+  "main": "lib/commonjs/index.js",
+  "module": "lib/module/index.js",
+  "types": "lib/typescript/src/index.d.ts",
+  "react-native": "lib/module/index.js",
+  "source": "lib/module/index.js",
+  "files": [
+    "lib",
+    "assets",
+    "android",
+    "!android/build",
+    "ios",
+    "!ios/build",
+    "react-native-richtext-editor.podspec",
+    "!**/__tests__",
+    "!**/__fixtures__",
+    "!**/__mocks__",
+    "!lib/typescript/example"
+  ],
+  "scripts": {
+    "typescript": "tsc --noEmit",
+    "lint": "eslint \"**/*.{js,ts,tsx}\"",
+    "prepare": "bob build",
+    "clean": "del-cli lib",
+    "publish:patch": "npm version patch && npm publish"
+  },
+  "keywords": [
+    "react-native",
+    "rich-text",
+    "editor",
+    "wysiwyg",
+    "text-formatting",
+    "ios",
+    "android"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Chaitra9225/react-native-richtext-editor.git"
+  },
+  "author": "Chaitra Bhairappa <chaithrachinnu.cbg@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Chaitra9225/react-native-richtext-editor/issues"
+  },
+  "homepage": "https://github.com/Chaitra9225/react-native-richtext-editor#readme",
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-native": "^0.72.0",
+    "del-cli": "^5.0.0",
+    "react": "18.2.0",
+    "react-native": "0.72.0",
+    "react-native-builder-bob": "^0.23.0",
+    "typescript": "^5.0.0"
+  },
+  "peerDependencies": {
+    "react": "*",
+    "react-native": "*"
+  },
+  "react-native-builder-bob": {
+    "source": "src",
+    "output": "lib",
+    "targets": [
+      "commonjs",
+      "module",
+      [
+        "typescript",
+        {
+          "project": "tsconfig.build.json"
+        }
+      ]
+    ]
+  }
+}
