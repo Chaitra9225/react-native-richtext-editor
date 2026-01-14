@@ -163,6 +163,10 @@ class FloatingToolbar: UIView, UIScrollViewDelegate {
         }
     }
 
+    private let iconSize: CGFloat = 20
+    private let buttonSize: CGFloat = 36
+    private let iconPadding: CGFloat = 8
+
     private func rebuildButtons() {
         buttons.forEach { $0.removeFromSuperview() }
         buttons.removeAll()
@@ -170,19 +174,19 @@ class FloatingToolbar: UIView, UIScrollViewDelegate {
         for option in enabledOptions {
             guard let index = optionToIndex[option] else { continue }
 
-            let button = UIButton(type: .system)
+            let button = UIButton(type: .custom)
             button.tag = index
             button.layer.cornerRadius = 6
             button.addTarget(self, action: #selector(buttonTapped(_:)), for: .touchUpInside)
-            button.widthAnchor.constraint(equalToConstant: 36).isActive = true
-            button.heightAnchor.constraint(equalToConstant: 36).isActive = true
+            button.widthAnchor.constraint(equalToConstant: buttonSize).isActive = true
+            button.heightAnchor.constraint(equalToConstant: buttonSize).isActive = true
 
-            button.titleLabel?.numberOfLines = 0
-            button.titleLabel?.lineBreakMode = .byWordWrapping
-            button.titleLabel?.textAlignment = .center
-
-            let attrString = createButtonAttributedString(for: index, active: false)
-            button.setAttributedTitle(attrString, for: .normal)
+            // Use vector icons with consistent sizing
+            if let icon = ToolbarIcons.getIcon(for: option, color: inactiveColor, size: CGSize(width: iconSize, height: iconSize)) {
+                button.setImage(icon.withRenderingMode(.alwaysOriginal), for: .normal)
+                button.imageView?.contentMode = .scaleAspectFit
+                button.contentEdgeInsets = UIEdgeInsets(top: iconPadding, left: iconPadding, bottom: iconPadding, right: iconPadding)
+            }
 
             buttons.append(button)
             stackView.addArrangedSubview(button)
@@ -381,6 +385,14 @@ class FloatingToolbar: UIView, UIScrollViewDelegate {
         editorView?.updateToolbarButtonStates()
     }
 
+    private let indexToOption: [Int: String] = [
+        0: "bold", 1: "italic", 2: "strikethrough", 3: "underline", 4: "code", 5: "highlight",
+        6: "heading", 7: "bullet", 8: "numbered", 9: "quote", 10: "checklist",
+        11: "link", 12: "undo", 13: "redo", 14: "clearFormatting",
+        15: "indent", 16: "outdent",
+        17: "alignLeft", 18: "alignCenter", 19: "alignRight"
+    ]
+
     func updateButtonStates(bold: Bool, italic: Bool, underline: Bool, strikethrough: Bool, code: Bool = false, highlight: Bool = false, heading: Bool = false, bullet: Bool, numbered: Bool, quote: Bool = false, checklist: Bool = false, alignLeft: Bool = true, alignCenter: Bool = false, alignRight: Bool = false) {
         let styleStates: [Int: Bool] = [
             0: bold, 1: italic, 2: strikethrough, 3: underline, 4: code, 5: highlight,
@@ -393,9 +405,15 @@ class FloatingToolbar: UIView, UIScrollViewDelegate {
         for button in buttons {
             let tag = button.tag
             let isActive = styleStates[tag] ?? false
-            let attrString = createButtonAttributedString(for: tag, active: isActive)
-            button.setAttributedTitle(attrString, for: .normal)
-            button.backgroundColor = isActive ? toolbarBackgroundColor.withAlphaComponent(0.5) : .clear
+            let color = isActive ? activeColor : inactiveColor
+
+            // Update icon with new color
+            if let option = indexToOption[tag],
+               let icon = ToolbarIcons.getIcon(for: option, color: color, size: CGSize(width: iconSize, height: iconSize)) {
+                button.setImage(icon.withRenderingMode(.alwaysOriginal), for: .normal)
+            }
+
+            button.backgroundColor = isActive ? UIColor.white.withAlphaComponent(0.15) : .clear
         }
     }
 }
@@ -444,12 +462,23 @@ class RichTextView: UITextView {
 }
 
 class RichTextEditorView: UIView, UITextViewDelegate {
+    private static let defaultLineHeightMultiple: CGFloat = 1.3
+
     private let textView: RichTextView = {
         let tv = RichTextView()
         tv.font = UIFont.systemFont(ofSize: 16)
         tv.textContainerInset = UIEdgeInsets(top: 12, left: 8, bottom: 12, right: 8)
         tv.translatesAutoresizingMaskIntoConstraints = false
         tv.backgroundColor = .clear
+
+        // Set default paragraph style with consistent line height
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.lineHeightMultiple = defaultLineHeightMultiple
+        tv.typingAttributes = [
+            .font: UIFont.systemFont(ofSize: 16),
+            .paragraphStyle: paragraphStyle
+        ]
+
         return tv
     }()
 
@@ -956,6 +985,7 @@ class RichTextEditorView: UIView, UITextViewDelegate {
 
             let paragraphStyle = NSMutableParagraphStyle()
             paragraphStyle.alignment = .left
+            paragraphStyle.lineHeightMultiple = RichTextEditorView.defaultLineHeightMultiple
 
             if lineText.hasPrefix("• ") {
                 paragraphStyle.firstLineHeadIndent = 0
@@ -1402,6 +1432,7 @@ class RichTextEditorView: UIView, UITextViewDelegate {
         let mutableAttrString = NSMutableAttributedString(attributedString: textView.attributedText)
         let paragraphStyle = NSMutableParagraphStyle()
         paragraphStyle.alignment = alignment
+        paragraphStyle.lineHeightMultiple = RichTextEditorView.defaultLineHeightMultiple
 
         mutableAttrString.addAttribute(.paragraphStyle, value: paragraphStyle, range: lineRange)
 
@@ -1603,6 +1634,7 @@ class RichTextEditorView: UIView, UITextViewDelegate {
             var prefixLength = 0
             let paragraphStyle = NSMutableParagraphStyle()
             paragraphStyle.alignment = .left
+            paragraphStyle.lineHeightMultiple = RichTextEditorView.defaultLineHeightMultiple
 
             switch blockType {
             case "bullet":

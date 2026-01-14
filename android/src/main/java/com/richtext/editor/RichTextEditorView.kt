@@ -91,6 +91,7 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
 
         setPadding(paddingHorizontal, paddingVertical, paddingHorizontal, paddingVertical)
         textSize = 16f
+        setLineSpacing(0f, 1.3f)  // Consistent line height multiplier
         setTextColor(Color.BLACK)
         setHintTextColor(Color.parseColor("#9E9E9E"))
         gravity = Gravity.TOP or Gravity.START

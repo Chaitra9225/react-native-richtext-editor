@@ -2,11 +2,14 @@ package com.richtext.editor
 
 import android.content.Context
 import android.graphics.Color
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffColorFilter
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.widget.HorizontalScrollView
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.graphics.Typeface
@@ -15,6 +18,7 @@ import android.text.Spanned
 import android.text.style.StrikethroughSpan
 import android.text.style.UnderlineSpan
 import android.text.style.BackgroundColorSpan
+import androidx.core.content.ContextCompat
 
 class FloatingToolbar(context: Context) : LinearLayout(context) {
 
@@ -52,7 +56,7 @@ class FloatingToolbar(context: Context) : LinearLayout(context) {
     private val activeColor = Color.parseColor("#5082C8")
     private val inactiveColor = Color.WHITE
 
-    private val buttons = mutableMapOf<String, TextView>()
+    private val buttons = mutableMapOf<String, ImageView>()
     private val buttonContainer: LinearLayout
     private val scrollView: HorizontalScrollView
 
@@ -159,10 +163,42 @@ class FloatingToolbar(context: Context) : LinearLayout(context) {
         }
     }
 
-    private fun createButton(option: String): TextView? {
-        val button = TextView(context).apply {
-            gravity = Gravity.CENTER
-            setTextColor(inactiveColor)
+    private fun getDrawableResId(option: String): Int {
+        return when (option) {
+            "bold" -> R.drawable.ic_format_bold
+            "italic" -> R.drawable.ic_format_italic
+            "underline" -> R.drawable.ic_format_underline
+            "strikethrough" -> R.drawable.ic_format_strikethrough
+            "code" -> R.drawable.ic_format_code
+            "highlight" -> R.drawable.ic_format_highlight
+            "heading" -> R.drawable.ic_format_heading
+            "bullet" -> R.drawable.ic_format_list_bulleted
+            "numbered" -> R.drawable.ic_format_list_numbered
+            "quote" -> R.drawable.ic_format_quote
+            "checklist" -> R.drawable.ic_format_checklist
+            "link" -> R.drawable.ic_format_link
+            "undo" -> R.drawable.ic_format_undo
+            "redo" -> R.drawable.ic_format_redo
+            "clearFormatting" -> R.drawable.ic_format_clear
+            "indent" -> R.drawable.ic_format_indent
+            "outdent" -> R.drawable.ic_format_outdent
+            "alignLeft" -> R.drawable.ic_format_align_left
+            "alignCenter" -> R.drawable.ic_format_align_center
+            "alignRight" -> R.drawable.ic_format_align_right
+            else -> 0
+        }
+    }
+
+    private val iconSize = (20 * density).toInt()
+    private val iconPadding = (8 * density).toInt()
+
+    private fun createButton(option: String): ImageView? {
+        val drawableResId = getDrawableResId(option)
+        if (drawableResId == 0) return null
+
+        val button = ImageView(context).apply {
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            setPadding(iconPadding, iconPadding, iconPadding, iconPadding)
 
             val bg = GradientDrawable().apply {
                 cornerRadius = 6 * density
@@ -173,124 +209,33 @@ class FloatingToolbar(context: Context) : LinearLayout(context) {
             val params = LayoutParams(buttonSize, buttonSize)
             params.marginEnd = buttonSpacing
             layoutParams = params
+
+            // Set the icon - drawable will scale to fit within padding
+            setImageResource(drawableResId)
+            colorFilter = PorterDuffColorFilter(inactiveColor, PorterDuff.Mode.SRC_IN)
         }
 
         when (option) {
-            "bold" -> {
-                button.text = "B"
-                button.textSize = 18f
-                button.setTypeface(null, Typeface.BOLD)
-                button.setOnClickListener { listener?.onBoldClick() }
-            }
-            "italic" -> {
-                button.text = "I"
-                button.textSize = 18f
-                button.setTypeface(null, Typeface.ITALIC)
-                button.setOnClickListener { listener?.onItalicClick() }
-            }
-            "underline" -> {
-                val spannable = SpannableString("U")
-                spannable.setSpan(UnderlineSpan(), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                button.text = spannable
-                button.textSize = 18f
-                button.setOnClickListener { listener?.onUnderlineClick() }
-            }
-            "strikethrough" -> {
-                val spannable = SpannableString("S")
-                spannable.setSpan(StrikethroughSpan(), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                button.text = spannable
-                button.textSize = 18f
-                button.setOnClickListener { listener?.onStrikethroughClick() }
-            }
-            "code" -> {
-                button.text = "</>"
-                button.textSize = 12f
-                button.setTypeface(Typeface.MONOSPACE, Typeface.NORMAL)
-                button.setOnClickListener { listener?.onCodeClick() }
-            }
-            "highlight" -> {
-                // Use marker/highlighter icon representation
-                button.text = "✎"
-                button.textSize = 18f
-                button.setOnClickListener { listener?.onHighlightClick() }
-            }
-            "heading" -> {
-                button.text = "H1"
-                button.textSize = 14f
-                button.setTypeface(null, Typeface.BOLD)
-                button.setOnClickListener { listener?.onHeadingClick() }
-            }
-            "bullet" -> {
-                button.text = "•≡"
-                button.textSize = 14f
-                button.setOnClickListener { listener?.onBulletListClick() }
-            }
-            "numbered" -> {
-                button.text = "1."
-                button.textSize = 14f
-                button.setOnClickListener { listener?.onNumberedListClick() }
-            }
-            "quote" -> {
-                button.text = "❞"
-                button.textSize = 18f
-                button.setOnClickListener { listener?.onQuoteClick() }
-            }
-            "checklist" -> {
-                button.text = "☑"
-                button.textSize = 18f
-                button.setOnClickListener { listener?.onChecklistClick() }
-            }
-            "link" -> {
-                button.text = "🔗"
-                button.textSize = 14f
-                button.setOnClickListener { listener?.onLinkClick() }
-            }
-            "undo" -> {
-                button.text = "↩"
-                button.textSize = 18f
-                button.setOnClickListener { listener?.onUndoClick() }
-            }
-            "redo" -> {
-                button.text = "↪"
-                button.textSize = 18f
-                button.setOnClickListener { listener?.onRedoClick() }
-            }
-            "clearFormatting" -> {
-                val spannable = SpannableString("Tx")
-                spannable.setSpan(StrikethroughSpan(), 0, 2, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
-                button.text = spannable
-                button.textSize = 14f
-                button.setOnClickListener { listener?.onClearFormattingClick() }
-            }
-            "indent" -> {
-                button.text = "→⊢"
-                button.textSize = 12f
-                button.setOnClickListener { listener?.onIndentClick() }
-            }
-            "outdent" -> {
-                button.text = "⊣←"
-                button.textSize = 12f
-                button.setOnClickListener { listener?.onOutdentClick() }
-            }
-            "alignLeft" -> {
-                button.text = "≡"
-                button.textSize = 18f
-                button.gravity = Gravity.START or Gravity.CENTER_VERTICAL
-                button.setOnClickListener { listener?.onAlignLeftClick() }
-            }
-            "alignCenter" -> {
-                button.text = "≡"
-                button.textSize = 18f
-                button.gravity = Gravity.CENTER
-                button.setOnClickListener { listener?.onAlignCenterClick() }
-            }
-            "alignRight" -> {
-                button.text = "≡"
-                button.textSize = 18f
-                button.gravity = Gravity.END or Gravity.CENTER_VERTICAL
-                button.setOnClickListener { listener?.onAlignRightClick() }
-            }
-            else -> return null
+            "bold" -> button.setOnClickListener { listener?.onBoldClick() }
+            "italic" -> button.setOnClickListener { listener?.onItalicClick() }
+            "underline" -> button.setOnClickListener { listener?.onUnderlineClick() }
+            "strikethrough" -> button.setOnClickListener { listener?.onStrikethroughClick() }
+            "code" -> button.setOnClickListener { listener?.onCodeClick() }
+            "highlight" -> button.setOnClickListener { listener?.onHighlightClick() }
+            "heading" -> button.setOnClickListener { listener?.onHeadingClick() }
+            "bullet" -> button.setOnClickListener { listener?.onBulletListClick() }
+            "numbered" -> button.setOnClickListener { listener?.onNumberedListClick() }
+            "quote" -> button.setOnClickListener { listener?.onQuoteClick() }
+            "checklist" -> button.setOnClickListener { listener?.onChecklistClick() }
+            "link" -> button.setOnClickListener { listener?.onLinkClick() }
+            "undo" -> button.setOnClickListener { listener?.onUndoClick() }
+            "redo" -> button.setOnClickListener { listener?.onRedoClick() }
+            "clearFormatting" -> button.setOnClickListener { listener?.onClearFormattingClick() }
+            "indent" -> button.setOnClickListener { listener?.onIndentClick() }
+            "outdent" -> button.setOnClickListener { listener?.onOutdentClick() }
+            "alignLeft" -> button.setOnClickListener { listener?.onAlignLeftClick() }
+            "alignCenter" -> button.setOnClickListener { listener?.onAlignCenterClick() }
+            "alignRight" -> button.setOnClickListener { listener?.onAlignRightClick() }
         }
 
         return button
@@ -331,7 +276,10 @@ class FloatingToolbar(context: Context) : LinearLayout(context) {
 
         for ((option, button) in buttons) {
             val isActive = states[option] ?: false
-            button.setTextColor(if (isActive) activeColor else inactiveColor)
+            button.colorFilter = PorterDuffColorFilter(
+                if (isActive) activeColor else inactiveColor,
+                PorterDuff.Mode.SRC_IN
+            )
             (button.background as? GradientDrawable)?.setColor(
                 if (isActive) Color.parseColor("#40FFFFFF") else Color.TRANSPARENT
             )
