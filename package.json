@@ -8,6 +8,7 @@
   "react-native": "lib/module/index.js",
   "source": "lib/module/index.js",
   "files": [
+    "src",
     "lib",
     "assets",
     "android",
