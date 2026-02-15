@@ -702,6 +702,10 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
             background = null
             setBackgroundColor(Color.WHITE)
             drawBottomBorder = true
+        } else if (variant == "plain") {
+            background = null
+            setBackgroundColor(Color.WHITE)
+            drawBottomBorder = false
         } else {
             drawBottomBorder = false
             val bg = GradientDrawable().apply {

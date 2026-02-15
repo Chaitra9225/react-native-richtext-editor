@@ -10,7 +10,7 @@ export interface StyleRange {
 
 export type BlockType = 'paragraph' | 'bullet' | 'numbered' | 'heading' | 'quote' | 'checklist';
 export type TextAlignment = 'left' | 'center' | 'right';
-export type EditorVariant = 'outlined' | 'flat';
+export type EditorVariant = 'outlined' | 'flat' | 'plain';
 
 export interface Block {
   type: BlockType;

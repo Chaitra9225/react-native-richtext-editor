@@ -1205,6 +1205,10 @@ class RichTextEditorView: UIView, UITextViewDelegate {
             layer.borderWidth = 0
             layer.cornerRadius = 0
             bottomBorder.isHidden = false
+        } else if variant == "plain" {
+            layer.borderWidth = 0
+            layer.cornerRadius = 0
+            bottomBorder.isHidden = true
         } else {
             layer.borderColor = UIColor.separator.cgColor
             layer.borderWidth = 1
