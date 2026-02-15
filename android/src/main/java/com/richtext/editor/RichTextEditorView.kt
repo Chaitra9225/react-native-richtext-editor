@@ -162,6 +162,7 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
 
             override fun afterTextChanged(s: Editable?) {
                 if (!isInternalChange) {
+                    autoContinueListOnEnter(s)
                     sendContentChangeWithDelta()
                     saveToUndoStack()
                     pendingDelta = null
@@ -1375,9 +1376,101 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
             val cleanLine = removeExistingPrefix(lineText)
             editable.replace(lineStart, lineEnd, "1. $cleanLine")
         }
+        renumberNumberedLists()
         isInternalChange = false
         sendContentChange()
         updateToolbarButtonStates()
+    }
+
+    private fun autoContinueListOnEnter(s: Editable?) {
+        if (s == null) return
+        val cursorPos = selectionStart
+        if (cursorPos <= 0 || cursorPos > s.length) return
+        if (s[cursorPos - 1] != '\n') return
+
+        val text = s.toString()
+        var prevLineStart = cursorPos - 2
+        while (prevLineStart > 0 && text[prevLineStart - 1] != '\n') prevLineStart--
+        if (prevLineStart < 0) prevLineStart = 0
+
+        val prevLine = text.substring(prevLineStart, cursorPos - 1)
+
+        val numberedMatch = Regex("^(\\d+)\\.\\s").find(prevLine)
+        if (numberedMatch != null) {
+            val content = prevLine.substring(numberedMatch.value.length)
+            if (content.isBlank()) {
+                isInternalChange = true
+                s.delete(prevLineStart, cursorPos)
+                isInternalChange = false
+                return
+            }
+            val nextNum = (numberedMatch.groupValues[1].toIntOrNull() ?: 0) + 1
+            val prefix = "$nextNum. "
+            isInternalChange = true
+            s.insert(cursorPos, prefix)
+            setSelection(cursorPos + prefix.length)
+            renumberNumberedLists()
+            isInternalChange = false
+            return
+        }
+
+        if (prevLine.startsWith("• ")) {
+            val content = prevLine.substring(2)
+            if (content.isBlank()) {
+                isInternalChange = true
+                s.delete(prevLineStart, cursorPos)
+                isInternalChange = false
+                return
+            }
+            isInternalChange = true
+            s.insert(cursorPos, "• ")
+            setSelection(cursorPos + 2)
+            isInternalChange = false
+            return
+        }
+
+        if (prevLine.startsWith("☐ ") || prevLine.startsWith("☑ ")) {
+            val content = prevLine.substring(2)
+            if (content.isBlank()) {
+                isInternalChange = true
+                s.delete(prevLineStart, cursorPos)
+                isInternalChange = false
+                return
+            }
+            isInternalChange = true
+            s.insert(cursorPos, "☐ ")
+            setSelection(cursorPos + 2)
+            isInternalChange = false
+            return
+        }
+    }
+
+    private fun renumberNumberedLists() {
+        val editable = text ?: return
+        val fullText = editable.toString()
+        val lines = fullText.split("\n")
+        val numberedRegex = Regex("^(\\d+)\\.\\s")
+
+        var counter = 0
+        var offset = 0
+
+        for (line in lines) {
+            val match = numberedRegex.find(line)
+            if (match != null) {
+                counter++
+                val oldPrefix = match.value
+                val newPrefix = "$counter. "
+                if (oldPrefix != newPrefix) {
+                    editable.replace(offset, offset + oldPrefix.length, newPrefix)
+                    offset += line.length - oldPrefix.length + newPrefix.length + 1
+                } else {
+                    offset += line.length + 1
+                }
+            } else {
+                counter = 0
+                offset += line.length + 1
+            }
+        }
     }
 
     private fun toggleQuote() {

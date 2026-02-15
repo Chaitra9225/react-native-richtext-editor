@@ -27,6 +27,7 @@ Unlike other rich text editor packages that rely on HTML and WebView, this libra
 - Floating toolbar with customizable options
 - Two variants: outlined and flat
 - Auto-growing height
+- **`numberOfLines` support** — truncate text with ellipsis in readOnly mode
 - **Delta-based content updates** for optimized performance
 - **Synchronous style detection** via `onActiveStylesChange`
 
@@ -137,6 +138,7 @@ export default App;
 | `placeholder`       | `string`                                | `""`         | Placeholder text                |
 | `initialContent`    | `Block[]`                               | `[]`         | Initial content blocks          |
 | `readOnly`          | `boolean`                               | `false`      | Make editor read-only           |
+| `numberOfLines`     | `number`                                | `undefined`  | Truncate text with ellipsis in readOnly mode |
 | `maxHeight`         | `number`                                | `undefined`  | Maximum height before scrolling |
 | `showToolbar`       | `boolean`                               | `true`       | Show/hide floating toolbar      |
 | `toolbarOptions`    | `ToolbarOption[]`                       | All options  | Customize toolbar buttons       |
@@ -237,6 +239,20 @@ type ToolbarOption =
   | 'alignRight';
 ```
 
+## Read-Only with numberOfLines
+
+Use the `numberOfLines` prop along with `readOnly` to truncate content with an ellipsis:
+
+```tsx
+<RichTextEditor
+  readOnly
+  numberOfLines={3}
+  initialContent={initialContent}
+/>
+```
+
+This works like React Native's `Text` component — content is truncated at the specified number of lines with a trailing ellipsis.
+
 ## Customizing Toolbar
 
 ```tsx
@@ -249,6 +265,17 @@ const toolbarOptions: ToolbarOption[] = ['bold', 'italic', 'underline', 'bullet'
   // ...
 />;
 ```
+
+## Changelog
+
+### 2.0.1
+
+- Add `numberOfLines` prop to truncate text with ellipsis in readOnly mode (iOS & Android)
+- Fix Android `onContentChange` to correctly extract text styles (bold, italic, underline, strikethrough, code, highlight)
+- Fix Android `onContentChange` to correctly detect block types (bullet, numbered, checklist, quote)
+- Android: auto-scroll to cursor when content exceeds maxHeight
+- Android: fix flat variant bottom border position during scroll
+- Upgrade example app to React Native 0.81 with New Architecture
 
 ## License
 

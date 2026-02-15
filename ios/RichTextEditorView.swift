@@ -1010,12 +1010,137 @@ class RichTextEditorView: UIView, UITextViewDelegate {
         placeholderLabel.isHidden = !textView.text.isEmpty
 
         if !isInternalChange {
+            autoContinueListOnEnter()
             saveToUndoStack()
         }
 
         applyListIndentation()
         updateContentSize()
         sendContentChange()
+    }
+
+    private func autoContinueListOnEnter() {
+        guard let text = textView.text, !text.isEmpty else { return }
+        let cursorPos = textView.selectedRange.location
+        guard cursorPos > 0, cursorPos <= text.count else { return }
+
+        let nsText = text as NSString
+        guard nsText.character(at: cursorPos - 1) == 10 else { return } // '\n'
+
+        var prevLineStart = cursorPos - 2
+        while prevLineStart > 0 && nsText.character(at: prevLineStart - 1) != 10 {
+            prevLineStart -= 1
+        }
+        if prevLineStart < 0 { prevLineStart = 0 }
+
+        let prevLine = nsText.substring(with: NSRange(location: prevLineStart, length: cursorPos - 1 - prevLineStart))
+
+        let numberedRegex = try? NSRegularExpression(pattern: "^(\\d+)\\.\\s")
+        if let match = numberedRegex?.firstMatch(in: prevLine, range: NSRange(location: 0, length: prevLine.count)) {
+            let prefixStr = (prevLine as NSString).substring(with: match.range)
+            let content = String(prevLine.dropFirst(prefixStr.count))
+
+            if content.trimmingCharacters(in: .whitespaces).isEmpty {
+                isInternalChange = true
+                let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
+                mutable.deleteCharacters(in: NSRange(location: prevLineStart, length: cursorPos - prevLineStart))
+                textView.attributedText = mutable
+                textView.selectedRange = NSRange(location: prevLineStart, length: 0)
+                isInternalChange = false
+                return
+            }
+
+            let numStr = (prevLine as NSString).substring(with: match.range(at: 1))
+            let nextNum = (Int(numStr) ?? 0) + 1
+            let prefix = "\(nextNum). "
+
+            isInternalChange = true
+            let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
+            let attrs = mutable.attributes(at: max(0, cursorPos - 2), effectiveRange: nil)
+            mutable.insert(NSAttributedString(string: prefix, attributes: attrs), at: cursorPos)
+            textView.attributedText = mutable
+            textView.selectedRange = NSRange(location: cursorPos + prefix.count, length: 0)
+            renumberNumberedLists()
+            isInternalChange = false
+            return
+        }
+
+        if prevLine.hasPrefix("• ") {
+            let content = String(prevLine.dropFirst(2))
+            if content.trimmingCharacters(in: .whitespaces).isEmpty {
+                isInternalChange = true
+                let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
+                mutable.deleteCharacters(in: NSRange(location: prevLineStart, length: cursorPos - prevLineStart))
+                textView.attributedText = mutable
+                textView.selectedRange = NSRange(location: prevLineStart, length: 0)
+                isInternalChange = false
+                return
+            }
+            isInternalChange = true
+            let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
+            let attrs = mutable.attributes(at: max(0, cursorPos - 2), effectiveRange: nil)
+            mutable.insert(NSAttributedString(string: "• ", attributes: attrs), at: cursorPos)
+            textView.attributedText = mutable
+            textView.selectedRange = NSRange(location: cursorPos + 2, length: 0)
+            isInternalChange = false
+            return
+        }
+
+        if prevLine.hasPrefix("☐ ") || prevLine.hasPrefix("☑ ") {
+            let content = String(prevLine.dropFirst(2))
+            if content.trimmingCharacters(in: .whitespaces).isEmpty {
+                isInternalChange = true
+                let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
+                mutable.deleteCharacters(in: NSRange(location: prevLineStart, length: cursorPos - prevLineStart))
+                textView.attributedText = mutable
+                textView.selectedRange = NSRange(location: prevLineStart, length: 0)
+                isInternalChange = false
+                return
+            }
+            isInternalChange = true
+            let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
+            let attrs = mutable.attributes(at: max(0, cursorPos - 2), effectiveRange: nil)
+            mutable.insert(NSAttributedString(string: "☐ ", attributes: attrs), at: cursorPos)
+            textView.attributedText = mutable
+            textView.selectedRange = NSRange(location: cursorPos + 2, length: 0)
+            isInternalChange = false
+            return
+        }
+    }
+
+    private func renumberNumberedLists() {
+        guard let text = textView.text, !text.isEmpty else { return }
+        let lines = text.components(separatedBy: "\n")
+        let numberedRegex = try? NSRegularExpression(pattern: "^(\\d+)\\.\\s")
+
+        var counter = 0
+        var replacements: [(range: NSRange, newPrefix: String)] = []
+        var offset = 0
+
+        for line in lines {
+            if let match = numberedRegex?.firstMatch(in: line, range: NSRange(location: 0, length: line.count)) {
+                counter += 1
+                let oldPrefix = (line as NSString).substring(with: match.range)
+                let newPrefix = "\(counter). "
+                if oldPrefix != newPrefix {
+                    replacements.append((NSRange(location: offset, length: oldPrefix.count), newPrefix))
+                }
+            } else {
+                counter = 0
+            }
+            offset += line.count + 1
+        }
+
+        if !replacements.isEmpty {
+            let cursorPos = textView.selectedRange
+            let mutableAttrString = NSMutableAttributedString(attributedString: textView.attributedText)
+            for replacement in replacements.reversed() {
+                let attrs = mutableAttrString.attributes(at: replacement.range.location, effectiveRange: nil)
+                mutableAttrString.replaceCharacters(in: replacement.range, with: NSAttributedString(string: replacement.newPrefix, attributes: attrs))
+            }
+            textView.attributedText = mutableAttrString
+            textView.selectedRange = cursorPos
+        }
     }
 
     private func applyNumberOfLines() {

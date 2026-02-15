@@ -115,6 +115,7 @@ const styles = StyleSheet.create({
   editor: {
     backgroundColor: '#fff',
     borderRadius: 8,
+    minHeight: 100,
   },
   buttonRow: {
     flexDirection: 'row',
