@@ -518,7 +518,10 @@ class RichTextEditorView: UIView, UITextViewDelegate {
     }
 
     @objc var editable: Bool = true {
-        didSet { textView.isEditable = editable }
+        didSet {
+            textView.isEditable = editable
+            applyNumberOfLines()
+        }
     }
 
     @objc var maxHeight: CGFloat = 0 {
@@ -528,6 +531,12 @@ class RichTextEditorView: UIView, UITextViewDelegate {
                 maxHeightConstraint = textView.heightAnchor.constraint(lessThanOrEqualToConstant: maxHeight)
                 maxHeightConstraint?.isActive = true
             }
+        }
+    }
+
+    @objc var numberOfLines: Int = 0 {
+        didSet {
+            applyNumberOfLines()
         }
     }
 
@@ -1007,6 +1016,18 @@ class RichTextEditorView: UIView, UITextViewDelegate {
         applyListIndentation()
         updateContentSize()
         sendContentChange()
+    }
+
+    private func applyNumberOfLines() {
+        if numberOfLines > 0 && !editable {
+            textView.textContainer.maximumNumberOfLines = numberOfLines
+            textView.textContainer.lineBreakMode = .byTruncatingTail
+            textView.isScrollEnabled = false
+        } else {
+            textView.textContainer.maximumNumberOfLines = 0
+            textView.textContainer.lineBreakMode = .byWordWrapping
+        }
+        updateContentSize()
     }
 
     private func updateContentSize() {

@@ -51,6 +51,7 @@ export interface NativeProps extends ViewProps {
   placeholder?: string;
   editable?: boolean;
   maxHeight?: Double;
+  numberOfLines?: Int32;
   showToolbar?: boolean;
   toolbarOptions?: ReadonlyArray<string>;
   variant?: string;

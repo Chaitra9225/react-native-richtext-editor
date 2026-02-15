@@ -46,6 +46,15 @@ class RichTextEditorViewManager : SimpleViewManager<RichTextEditorView>() {
         }
     }
 
+    @ReactProp(name = "numberOfLines")
+    fun setNumberOfLines(view: RichTextEditorView, numberOfLines: Int) {
+        try {
+            view.setNumberOfLinesValue(numberOfLines)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     @ReactProp(name = "showToolbar")
     fun setShowToolbar(view: RichTextEditorView, showToolbar: Boolean) {
         try {

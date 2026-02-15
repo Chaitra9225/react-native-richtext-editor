@@ -36,6 +36,7 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
 
     private var placeholder: String = ""
     private var maxHeightValue: Int = 0
+    private var numberOfLinesValue: Int = 0
     private var showToolbar: Boolean = true
     private var variant: String = "outlined"
     private var density: Float = 1f
@@ -593,7 +594,7 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         super.onDraw(canvas)
 
         if (drawBottomBorder) {
-            val y = height.toFloat() - bottomBorderPaint.strokeWidth / 2
+            val y = scrollY + height.toFloat() - bottomBorderPaint.strokeWidth / 2
             canvas.drawLine(0f, y, width.toFloat(), y, bottomBorderPaint)
         }
     }
@@ -601,13 +602,17 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec)
 
-        // After super.onMeasure, we have layout info
         val textLayout = layout
         if (textLayout != null) {
             val lineCount = textLayout.lineCount
             if (lineCount > 0) {
-                val textHeight = textLayout.getLineTop(lineCount).toFloat()
-                var desiredHeight = textHeight + paddingTop + paddingBottom
+                val effectiveLineCount = if (numberOfLinesValue > 0 && !isEnabled) {
+                    minOf(numberOfLinesValue, lineCount)
+                } else {
+                    lineCount
+                }
+
+                var desiredHeight = textLayout.getLineBottom(effectiveLineCount - 1).toFloat() + paddingTop + paddingBottom
 
                 if (desiredHeight < minHeightPx) {
                     desiredHeight = minHeightPx
@@ -622,7 +627,6 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
 
                 calculatedHeight = desiredHeight
 
-                // Apply the calculated height
                 val measuredWidth = MeasureSpec.getSize(widthMeasureSpec)
                 setMeasuredDimension(measuredWidth, desiredHeight.toInt())
             }
@@ -640,8 +644,13 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         val lineCount = textLayout.lineCount
         if (lineCount == 0) return
 
-        val textHeight = textLayout.getLineTop(lineCount).toFloat()
-        var newHeightPx = textHeight + paddingTop + paddingBottom
+        val effectiveLineCount = if (numberOfLinesValue > 0 && !isEnabled) {
+            minOf(numberOfLinesValue, lineCount)
+        } else {
+            lineCount
+        }
+
+        var newHeightPx = textLayout.getLineBottom(effectiveLineCount - 1).toFloat() + paddingTop + paddingBottom
 
         if (newHeightPx < minHeightPx) {
             newHeightPx = minHeightPx
@@ -661,7 +670,6 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         val previousHeight = calculatedHeight
         calculatedHeight = newHeightPx
 
-        // Convert pixels to dp for React Native
         val newHeightDp = newHeightPx / density
 
         if (kotlin.math.abs(newHeightDp - lastReportedHeight) > 0.5f) {
@@ -670,9 +678,20 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
             map.putInt("height", newHeightDp.toInt())
             sendEvent("onSizeChange", map)
 
-            // Request re-layout if height changed
             if (kotlin.math.abs(previousHeight - calculatedHeight) > 1f) {
                 requestLayout()
+            }
+        }
+
+        if (maxHeightValue > 0 && textLayout.lineCount > 0 && !(numberOfLinesValue > 0 && !isEnabled)) {
+            val cursorPos = selectionEnd.coerceAtLeast(0)
+            val cursorLine = textLayout.getLineForOffset(cursorPos)
+            val cursorBottom = textLayout.getLineBottom(cursorLine)
+            val visibleBottom = scrollY + height - paddingBottom
+            if (cursorBottom > visibleBottom) {
+                scrollTo(0, cursorBottom - height + paddingBottom)
+            } else if (textLayout.getLineTop(cursorLine) < scrollY + paddingTop) {
+                scrollTo(0, textLayout.getLineTop(cursorLine) - paddingTop)
             }
         }
     }
@@ -769,11 +788,61 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
 
     fun setEditable(value: Boolean) {
         isEnabled = value
+        if (numberOfLinesValue > 0) {
+            setNumberOfLinesValue(numberOfLinesValue)
+        }
     }
 
     fun setMaxHeightValue(value: Int) {
         maxHeightValue = value
         post { updateContentSize() }
+    }
+
+    fun setNumberOfLinesValue(value: Int) {
+        numberOfLinesValue = if (value == 0) 0 else value
+        if (numberOfLinesValue > 0 && !isEnabled) {
+            maxLines = numberOfLinesValue
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            isVerticalScrollBarEnabled = false
+            scrollTo(0, 0)
+        } else {
+            maxLines = Integer.MAX_VALUE
+            ellipsize = null
+        }
+        requestLayout()
+    }
+
+    private fun applyEllipsisIfNeeded() {
+        if (numberOfLinesValue <= 0 || isEnabled) return
+        val textLayout = layout ?: return
+        if (textLayout.lineCount <= numberOfLinesValue) return
+
+        val content = text ?: return
+        val availableWidth = textLayout.width
+
+        val staticLayout = android.text.StaticLayout.Builder
+            .obtain(content, 0, content.length, paint, availableWidth)
+            .setMaxLines(numberOfLinesValue)
+            .setEllipsize(android.text.TextUtils.TruncateAt.END)
+            .setLineSpacing(lineSpacingExtra, lineSpacingMultiplier)
+            .setIncludePad(includeFontPadding)
+            .build()
+
+        val lastLine = numberOfLinesValue - 1
+        val ellipsisStart = staticLayout.getEllipsisStart(lastLine)
+        val ellipsisCount = staticLayout.getEllipsisCount(lastLine)
+
+        if (ellipsisCount > 0) {
+            val lineStart = staticLayout.getLineStart(lastLine)
+            val truncPoint = lineStart + ellipsisStart
+
+            isInternalChange = true
+            val editable = content as? android.text.Editable ?: return
+            editable.delete(truncPoint, editable.length)
+            editable.append("\u2026")
+            setSelection(0)
+            isInternalChange = false
+        }
     }
 
     fun setShowToolbar(value: Boolean) {
@@ -860,9 +929,19 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
 
         isInternalChange = true
         setText(spannable)
-        setSelection(spannable.length)
+        if (numberOfLinesValue > 0 && !isEnabled) {
+            setSelection(0)
+        } else {
+            setSelection(spannable.length)
+        }
         isInternalChange = false
-        post { updateContentSize() }
+        post {
+            if (numberOfLinesValue > 0 && !isEnabled) {
+                scrollTo(0, 0)
+                applyEllipsisIfNeeded()
+            }
+            updateContentSize()
+        }
     }
 
     fun getTextContent(): String = text.toString()
@@ -880,36 +959,128 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         sendEvent("onGetBlocksResponse", map)
     }
 
+    private fun extractStylesForRange(spannable: Spanned, lineStart: Int, lineEnd: Int): List<Map<String, Any>> {
+        val styles = mutableListOf<Map<String, Any>>()
+
+        spannable.getSpans(lineStart, lineEnd, StyleSpan::class.java).forEach { span ->
+            val start = (spannable.getSpanStart(span) - lineStart).coerceAtLeast(0)
+            val end = (spannable.getSpanEnd(span) - lineStart).coerceAtMost(lineEnd - lineStart)
+            when (span.style) {
+                Typeface.BOLD -> styles.add(mapOf("style" to "bold", "start" to start, "end" to end))
+                Typeface.ITALIC -> styles.add(mapOf("style" to "italic", "start" to start, "end" to end))
+                Typeface.BOLD_ITALIC -> {
+                    styles.add(mapOf("style" to "bold", "start" to start, "end" to end))
+                    styles.add(mapOf("style" to "italic", "start" to start, "end" to end))
+                }
+            }
+        }
+
+        spannable.getSpans(lineStart, lineEnd, UnderlineSpan::class.java).forEach { span ->
+            if (spannable.getSpans(spannable.getSpanStart(span), spannable.getSpanEnd(span), URLSpan::class.java).isEmpty()) {
+                val start = (spannable.getSpanStart(span) - lineStart).coerceAtLeast(0)
+                val end = (spannable.getSpanEnd(span) - lineStart).coerceAtMost(lineEnd - lineStart)
+                styles.add(mapOf("style" to "underline", "start" to start, "end" to end))
+            }
+        }
+
+        spannable.getSpans(lineStart, lineEnd, StrikethroughSpan::class.java).forEach { span ->
+            val start = (spannable.getSpanStart(span) - lineStart).coerceAtLeast(0)
+            val end = (spannable.getSpanEnd(span) - lineStart).coerceAtMost(lineEnd - lineStart)
+            styles.add(mapOf("style" to "strikethrough", "start" to start, "end" to end))
+        }
+
+        spannable.getSpans(lineStart, lineEnd, TypefaceSpan::class.java).filter { it.family == "monospace" }.forEach { span ->
+            val start = (spannable.getSpanStart(span) - lineStart).coerceAtLeast(0)
+            val end = (spannable.getSpanEnd(span) - lineStart).coerceAtMost(lineEnd - lineStart)
+            styles.add(mapOf("style" to "code", "start" to start, "end" to end))
+        }
+
+        spannable.getSpans(lineStart, lineEnd, BackgroundColorSpan::class.java).filter {
+            val color = it.backgroundColor
+            color == Color.parseColor("#80FFFF00") || color == Color.YELLOW
+        }.forEach { span ->
+            val start = (spannable.getSpanStart(span) - lineStart).coerceAtLeast(0)
+            val end = (spannable.getSpanEnd(span) - lineStart).coerceAtMost(lineEnd - lineStart)
+            styles.add(mapOf("style" to "highlight", "start" to start, "end" to end))
+        }
+
+        return styles
+    }
+
+    private fun detectBlockType(lineText: String): Pair<String, String> {
+        return when {
+            lineText.startsWith("• ") -> "bullet" to lineText.substring(2)
+            lineText.matches(Regex("^\\d+\\.\\s.*")) -> "numbered" to lineText.replace(Regex("^\\d+\\.\\s"), "")
+            lineText.startsWith("☐ ") || lineText.startsWith("☑ ") -> "checklist" to lineText.substring(2)
+            lineText.startsWith("\"") && lineText.endsWith("\"") && lineText.length >= 2 -> "quote" to lineText.substring(1, lineText.length - 1)
+            else -> "paragraph" to lineText
+        }
+    }
+
     fun getBlocksArray(): WritableArray {
         val blocks = Arguments.createArray()
-        val textContent = text?.toString() ?: ""
-        if (textContent.isEmpty()) {
-            return blocks
-        }
+        val spannable = text as? Spanned ?: return blocks
+        val textContent = spannable.toString()
+        if (textContent.isEmpty()) return blocks
+
         val lines = textContent.split("\n")
+        var currentIndex = 0
         lines.forEach { line ->
+            val (blockType, displayText) = detectBlockType(line)
+            val prefixLen = line.length - displayText.length
+
             val block = Arguments.createMap()
-            block.putString("type", "paragraph")
-            block.putString("text", line)
-            block.putArray("styles", Arguments.createArray())
+            block.putString("type", blockType)
+            block.putString("text", displayText)
+
+            val stylesArray = Arguments.createArray()
+            val lineStart = currentIndex + prefixLen
+            val lineEnd = currentIndex + line.length
+            extractStylesForRange(spannable, lineStart, lineEnd).forEach { style ->
+                val styleMap = Arguments.createMap()
+                styleMap.putString("style", style["style"] as String)
+                styleMap.putInt("start", style["start"] as Int)
+                styleMap.putInt("end", style["end"] as Int)
+                stylesArray.pushMap(styleMap)
+            }
+            block.putArray("styles", stylesArray)
             blocks.pushMap(block)
+
+            currentIndex += line.length + 1
         }
         return blocks
     }
 
     fun getBlocksJsonString(): String {
-        val textContent = text?.toString() ?: ""
-        if (textContent.isEmpty()) {
-            return "[]"
-        }
+        val spannable = text as? Spanned ?: return "[]"
+        val textContent = spannable.toString()
+        if (textContent.isEmpty()) return "[]"
+
         val jsonArray = org.json.JSONArray()
         val lines = textContent.split("\n")
+        var currentIndex = 0
         lines.forEach { line ->
+            val (blockType, displayText) = detectBlockType(line)
+            val prefixLen = line.length - displayText.length
+
             val block = org.json.JSONObject()
-            block.put("type", "paragraph")
-            block.put("text", line)
-            block.put("styles", org.json.JSONArray())
+            block.put("type", blockType)
+            block.put("text", displayText)
+
+            val stylesJson = org.json.JSONArray()
+            val lineStart = currentIndex + prefixLen
+            val lineEnd = currentIndex + line.length
+            extractStylesForRange(spannable, lineStart, lineEnd).forEach { style ->
+                val styleObj = org.json.JSONObject()
+                styleObj.put("style", style["style"])
+                styleObj.put("start", style["start"])
+                styleObj.put("end", style["end"])
+                stylesJson.put(styleObj)
+            }
+            block.put("styles", stylesJson)
             jsonArray.put(block)
+
+            currentIndex += line.length + 1
         }
         return jsonArray.toString()
     }

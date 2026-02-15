@@ -192,6 +192,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorPropsExtended
       initialContentJson={props.initialContent ? JSON.stringify(props.initialContent) : undefined}
       editable={props.readOnly !== undefined ? !props.readOnly : true}
       maxHeight={props.maxHeight}
+      numberOfLines={props.numberOfLines}
       showToolbar={props.readOnly ? false : props.showToolbar ?? true}
       toolbarOptions={props.toolbarOptions}
       variant={props.variant ?? 'outlined'}

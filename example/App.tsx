@@ -1,4 +1,4 @@
-import React, {useRef} from 'react';
+import React, { useRef } from 'react';
 import {
   SafeAreaView,
   StyleSheet,
@@ -34,12 +34,42 @@ function App(): React.JSX.Element {
     editorRef.current?.clear();
   };
 
+  const sampleContent: Block[] = [
+    {
+      type: 'paragraph',
+      text: 'This is a rich text editor demo with multiple lines of content that should be truncate when displayed in read-only mode with numberOfLines set.',
+      styles: [{ style: 'bold', start: 0, end: 4 }],
+    },
+    {
+      type: 'paragraph',
+      text: 'This second paragraph adds more content to demonstrate the ellipsis truncation behavior.',
+      styles: [{ style: 'italic', start: 5, end: 11 }],
+    },
+    {
+      type: 'paragraph',
+      text: 'This third paragraph should not be visible at all when numberOfLines is 2 fhfhfh fhfhf fhhfhf fhfhfh fhfhfhhdhdh dhhdhdhdhshs.',
+      styles: [],
+    },
+  ];
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Rich Text Editor Demo</Text>
       </View>
 
+      <Text style={styles.sectionLabel}>Read-Only with numberOfLines=2:</Text>
+      <View style={styles.editorContainer}>
+        <RichTextEditor
+          style={styles.editor}
+          initialContent={sampleContent}
+          readOnly
+          numberOfLines={2}
+          variant="flat"
+        />
+      </View>
+
+      <Text style={styles.sectionLabel}>Editable Editor:</Text>
       <View style={styles.editorContainer}>
         <RichTextEditor
           ref={editorRef}
@@ -70,11 +100,19 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
   },
+  sectionLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#666',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 4,
+  },
   editorContainer: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
   },
   editor: {
-    minHeight: 100,
     backgroundColor: '#fff',
     borderRadius: 8,
   },

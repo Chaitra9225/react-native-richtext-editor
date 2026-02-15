@@ -98,6 +98,7 @@ export interface RichTextEditorProps {
   initialContent?: Block[];
   readOnly?: boolean;
   maxHeight?: number;
+  numberOfLines?: number;
   showToolbar?: boolean;
   toolbarOptions?: ToolbarOption[];
   variant?: EditorVariant;
