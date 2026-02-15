@@ -47,6 +47,7 @@ function App(): React.JSX.Element {
           placeholder="Start typing..."
           onContentChange={handleContentChange}
           variant="outlined"
+          maxHeight={200}
         />
       </View>
     </SafeAreaView>
@@ -73,7 +74,7 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   editor: {
-    minHeight: 200,
+    minHeight: 100,
     backgroundColor: '#fff',
     borderRadius: 8,
   },
