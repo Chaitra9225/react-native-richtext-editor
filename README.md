@@ -47,14 +47,15 @@ onContentChange={(event) => {
 }}
 ```
 
-| Delta Type | When | Data |
-|------------|------|------|
-| `insert` | User types | `position`, `text` |
-| `delete` | User deletes | `position`, `length` |
-| `replace` | Selection replaced | `position`, `length`, `text` |
-| `format` | Style applied | `position`, `length`, `style` |
+| Delta Type | When               | Data                          |
+| ---------- | ------------------ | ----------------------------- |
+| `insert`   | User types         | `position`, `text`            |
+| `delete`   | User deletes       | `position`, `length`          |
+| `replace`  | Selection replaced | `position`, `length`, `text`  |
+| `format`   | Style applied      | `position`, `length`, `style` |
 
 **Benefits:**
+
 - **Server sync** — Send only deltas instead of full document
 - **Collaborative editing** — Apply remote changes efficiently
 - **Analytics** — Track exactly what users type/delete
@@ -133,20 +134,20 @@ export default App;
 
 ## Props
 
-| Prop                | Type                                    | Default      | Description                     |
-| ------------------- | --------------------------------------- | ------------ | ------------------------------- |
-| `placeholder`       | `string`                                | `""`         | Placeholder text                |
-| `initialContent`    | `Block[]`                               | `[]`         | Initial content blocks          |
-| `readOnly`          | `boolean`                               | `false`      | Make editor read-only           |
+| Prop                | Type                                    | Default      | Description                                  |
+| ------------------- | --------------------------------------- | ------------ | -------------------------------------------- |
+| `placeholder`       | `string`                                | `""`         | Placeholder text                             |
+| `initialContent`    | `Block[]`                               | `[]`         | Initial content blocks                       |
+| `readOnly`          | `boolean`                               | `false`      | Make editor read-only                        |
 | `numberOfLines`     | `number`                                | `undefined`  | Truncate text with ellipsis in readOnly mode |
-| `maxHeight`         | `number`                                | `undefined`  | Maximum height before scrolling |
-| `showToolbar`       | `boolean`                               | `true`       | Show/hide floating toolbar      |
-| `toolbarOptions`    | `ToolbarOption[]`                       | All options  | Customize toolbar buttons       |
-| `variant`           | `'outlined' \| 'flat'`                  | `'outlined'` | Editor style variant            |
-| `onContentChange`   | `(event: ContentChangeEvent) => void`   | `undefined`  | Called when content changes     |
-| `onSelectionChange` | `(event: SelectionChangeEvent) => void` | `undefined`  | Called when selection changes   |
-| `onFocus`           | `() => void`                            | `undefined`  | Called when editor gains focus  |
-| `onBlur`            | `() => void`                            | `undefined`  | Called when editor loses focus  |
+| `maxHeight`         | `number`                                | `undefined`  | Maximum height before scrolling              |
+| `showToolbar`       | `boolean`                               | `true`       | Show/hide floating toolbar                   |
+| `toolbarOptions`    | `ToolbarOption[]`                       | All options  | Customize toolbar buttons                    |
+| `variant`           | `'outlined' \| 'flat'`                  | `'outlined'` | Editor style variant                         |
+| `onContentChange`   | `(event: ContentChangeEvent) => void`   | `undefined`  | Called when content changes                  |
+| `onSelectionChange` | `(event: SelectionChangeEvent) => void` | `undefined`  | Called when selection changes                |
+| `onFocus`           | `() => void`                            | `undefined`  | Called when editor gains focus               |
+| `onBlur`            | `() => void`                            | `undefined`  | Called when editor loses focus               |
 
 ## Ref Methods
 
@@ -244,11 +245,7 @@ type ToolbarOption =
 Use the `numberOfLines` prop along with `readOnly` to truncate content with an ellipsis:
 
 ```tsx
-<RichTextEditor
-  readOnly
-  numberOfLines={3}
-  initialContent={initialContent}
-/>
+<RichTextEditor readOnly numberOfLines={3} initialContent={initialContent} />
 ```
 
 This works like React Native's `Text` component — content is truncated at the specified number of lines with a trailing ellipsis.
@@ -275,7 +272,6 @@ const toolbarOptions: ToolbarOption[] = ['bold', 'italic', 'underline', 'bullet'
 - Fix Android `onContentChange` to correctly detect block types (bullet, numbered, checklist, quote)
 - Android: auto-scroll to cursor when content exceeds maxHeight
 - Android: fix flat variant bottom border position during scroll
-- Upgrade example app to React Native 0.81 with New Architecture
 
 ## License
 

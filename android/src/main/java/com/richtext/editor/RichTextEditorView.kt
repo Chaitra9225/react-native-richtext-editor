@@ -48,6 +48,7 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
 
     private var previousText: String = ""
     private var pendingDelta: Map<String, Any>? = null
+    private var pendingPrefixDeletion: Pair<Int, Int>? = null // (lineStart, prefixLength) for backspace-in-prefix
 
     // For flat variant bottom border
     private val bottomBorderPaint = Paint().apply {
@@ -124,6 +125,7 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
                 changeStart = start
                 removedCount = count
                 addedCount = after
+                detectBackspaceInListPrefix(s, start, count, after)
             }
 
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
@@ -162,7 +164,9 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
 
             override fun afterTextChanged(s: Editable?) {
                 if (!isInternalChange) {
-                    autoContinueListOnEnter(s)
+                    if (!handleBackspaceInListPrefix(s)) {
+                        autoContinueListOnEnter(s)
+                    }
                     sendContentChangeWithDelta()
                     saveToUndoStack()
                     pendingDelta = null
@@ -1384,6 +1388,48 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         isInternalChange = false
         sendContentChange()
         updateToolbarButtonStates()
+    }
+
+    private fun detectBackspaceInListPrefix(s: CharSequence?, start: Int, count: Int, after: Int) {
+        pendingPrefixDeletion = null
+        if (isInternalChange || s == null || count != 1 || after != 0) return
+
+        val text = s.toString()
+        var lineStart = start
+        while (lineStart > 0 && text[lineStart - 1] != '\n') lineStart--
+
+        val lineEnd = text.indexOf('\n', lineStart).let { if (it == -1) text.length else it }
+        val line = text.substring(lineStart, lineEnd)
+
+        val numberedMatch = Regex("^(\\d+)\\.\\s").find(line)
+        if (numberedMatch != null && start < lineStart + numberedMatch.value.length) {
+            pendingPrefixDeletion = Pair(lineStart, numberedMatch.value.length)
+            return
+        }
+        if ((line.startsWith("• ") || line.startsWith("☐ ") || line.startsWith("☑ ")) && start < lineStart + 2) {
+            pendingPrefixDeletion = Pair(lineStart, 2)
+            return
+        }
+    }
+
+    private fun handleBackspaceInListPrefix(s: Editable?): Boolean {
+        val deletion = pendingPrefixDeletion ?: return false
+        pendingPrefixDeletion = null
+        if (s == null) return false
+
+        val (origLineStart, origPrefixLen) = deletion
+        // After the single-char delete, the remaining prefix starts at the same lineStart
+        // but is now origPrefixLen - 1 chars long
+        val remainingLen = origPrefixLen - 1
+        if (remainingLen <= 0) return false
+        if (origLineStart + remainingLen > s.length) return false
+
+        isInternalChange = true
+        s.delete(origLineStart, origLineStart + remainingLen)
+        setSelection(origLineStart)
+        renumberNumberedLists()
+        isInternalChange = false
+        return true
     }
 
     private fun autoContinueListOnEnter(s: Editable?) {

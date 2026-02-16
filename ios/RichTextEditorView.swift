@@ -861,6 +861,74 @@ class RichTextEditorView: UIView, UITextViewDelegate {
     }
 
     func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
+        if text.isEmpty && range.length == 1 {
+            let currentText = textView.text ?? ""
+            let nsText = currentText as NSString
+
+            var lineStart = range.location
+            while lineStart > 0 && nsText.character(at: lineStart - 1) != 10 {
+                lineStart -= 1
+            }
+
+            var lineEnd = range.location
+            while lineEnd < currentText.count && nsText.character(at: lineEnd) != 10 {
+                lineEnd += 1
+            }
+
+            let currentLine = nsText.substring(with: NSRange(location: lineStart, length: lineEnd - lineStart))
+
+            let numberedPattern = "^(\\d+)\\.\\s"
+            if let regex = try? NSRegularExpression(pattern: numberedPattern),
+               let match = regex.firstMatch(in: currentLine, range: NSRange(location: 0, length: currentLine.count)) {
+                let prefixEnd = lineStart + match.range.length
+                if range.location < prefixEnd && range.location >= lineStart {
+                    let prefixRange = NSRange(location: lineStart, length: match.range.length)
+                    isInternalChange = true
+                    let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
+                    mutable.deleteCharacters(in: prefixRange)
+                    textView.attributedText = mutable
+                    textView.selectedRange = NSRange(location: lineStart, length: 0)
+                    isInternalChange = false
+                    renumberNumberedLists()
+                    saveToUndoStack()
+                    sendContentChange()
+                    return false
+                }
+            }
+
+            if currentLine.hasPrefix("• ") {
+                let prefixEnd = lineStart + 2
+                if range.location < prefixEnd && range.location >= lineStart {
+                    let prefixRange = NSRange(location: lineStart, length: 2)
+                    isInternalChange = true
+                    let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
+                    mutable.deleteCharacters(in: prefixRange)
+                    textView.attributedText = mutable
+                    textView.selectedRange = NSRange(location: lineStart, length: 0)
+                    isInternalChange = false
+                    saveToUndoStack()
+                    sendContentChange()
+                    return false
+                }
+            }
+
+           if currentLine.hasPrefix("☐ ") || currentLine.hasPrefix("☑ ") {
+                let prefixEnd = lineStart + 2
+                if range.location < prefixEnd && range.location >= lineStart {
+                    let prefixRange = NSRange(location: lineStart, length: 2)
+                    isInternalChange = true
+                    let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
+                    mutable.deleteCharacters(in: prefixRange)
+                    textView.attributedText = mutable
+                    textView.selectedRange = NSRange(location: lineStart, length: 0)
+                    isInternalChange = false
+                    saveToUndoStack()
+                    sendContentChange()
+                    return false
+                }
+            }
+        }
+
         guard text == "\n" else { return true }
 
         let currentText = textView.text ?? ""
@@ -913,6 +981,7 @@ class RichTextEditorView: UIView, UITextViewDelegate {
             ]
             textView.typingAttributes = plainAttributes
             textView.insertText("\n\(nextNumber). ")
+            renumberNumberedLists()
             return false
         }
 
@@ -1015,6 +1084,7 @@ class RichTextEditorView: UIView, UITextViewDelegate {
         }
 
         applyListIndentation()
+        renumberNumberedLists()
         updateContentSize()
         sendContentChange()
     }
@@ -1138,8 +1208,10 @@ class RichTextEditorView: UIView, UITextViewDelegate {
                 let attrs = mutableAttrString.attributes(at: replacement.range.location, effectiveRange: nil)
                 mutableAttrString.replaceCharacters(in: replacement.range, with: NSAttributedString(string: replacement.newPrefix, attributes: attrs))
             }
+            isInternalChange = true
             textView.attributedText = mutableAttrString
             textView.selectedRange = cursorPos
+            isInternalChange = false
         }
     }
 
