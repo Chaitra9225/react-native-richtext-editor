@@ -265,7 +265,7 @@ const toolbarOptions: ToolbarOption[] = ['bold', 'italic', 'underline', 'bullet'
 
 ## Changelog
 
-### 2.0.1
+### 2.1.2
 
 - Add `numberOfLines` prop to truncate text with ellipsis in readOnly mode (iOS & Android)
 - Fix Android `onContentChange` to correctly extract text styles (bold, italic, underline, strikethrough, code, highlight)
