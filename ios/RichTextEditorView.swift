@@ -689,17 +689,18 @@ class RichTextEditorView: UIView, UITextViewDelegate {
             return
         }
 
-        let selectionRect = textView.firstRect(for: selectedRange)
+       let endRect = textView.caretRect(for: selectedRange.end)
+        let startRect = textView.caretRect(for: selectedRange.start)
 
-        guard !selectionRect.isNull && !selectionRect.isInfinite && selectionRect.width > 0 else {
+        guard !endRect.isNull && !endRect.isInfinite else {
             hideToolbar()
             return
         }
 
-        let convertedRect = textView.convert(selectionRect, to: window)
+        let convertedEndRect = textView.convert(endRect, to: window)
+        let convertedStartRect = textView.convert(startRect, to: window)
 
-        guard convertedRect.minY > 0 && convertedRect.maxY < window.bounds.height &&
-              convertedRect.minX >= 0 && convertedRect.maxX <= window.bounds.width else {
+        guard convertedEndRect.maxY > 0 && convertedStartRect.minY < window.bounds.height else {
             hideToolbar()
             return
         }
@@ -711,13 +712,13 @@ class RichTextEditorView: UIView, UITextViewDelegate {
         let safeAreaBottom = window.safeAreaInsets.bottom
 
         var toolbarX = (window.bounds.width - toolbarWidth) / 2
-        var toolbarY = convertedRect.maxY + 8
+        var toolbarY = convertedEndRect.maxY + 8
 
         toolbarX = max(8, min(toolbarX, window.bounds.width - toolbarWidth - 8))
 
         let maxY = window.bounds.height - safeAreaBottom - currentKeyboardHeight - toolbarHeight - 8
         if toolbarY > maxY {
-            toolbarY = convertedRect.minY - toolbarHeight - 8
+            toolbarY = convertedStartRect.minY - toolbarHeight - 8
             if toolbarY < safeAreaTop + 8 {
                 toolbarY = safeAreaTop + 8
             }
@@ -742,8 +743,7 @@ class RichTextEditorView: UIView, UITextViewDelegate {
     }
 
     func textViewDidChangeSelection(_ textView: UITextView) {
-        // Save selection when there's a valid selection (for toolbar actions)
-        let range = textView.selectedRange
+       let range = textView.selectedRange
         if range.length > 0 {
             savedSelectionRange = range
         }
@@ -945,17 +945,27 @@ class RichTextEditorView: UIView, UITextViewDelegate {
         if currentLine.hasPrefix("• ") {
             let lineContent = String(currentLine.dropFirst(2))
             if lineContent.trimmingCharacters(in: .whitespaces).isEmpty {
-                let deleteRange = NSRange(location: lineStart, length: lineLength)
-                textView.selectedRange = deleteRange
-                textView.insertText("")
+                isInternalChange = true
+                let deleteRange = NSRange(location: lineStart, length: range.location - lineStart)
+                let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
+                mutable.deleteCharacters(in: deleteRange)
+                textView.attributedText = mutable
+                textView.selectedRange = NSRange(location: lineStart, length: 0)
+                isInternalChange = false
+                saveToUndoStack()
+                sendContentChange()
                 return false
             }
+            isInternalChange = true
             let plainAttributes: [NSAttributedString.Key: Any] = [
                 .font: UIFont.systemFont(ofSize: 16),
                 .foregroundColor: UIColor.label
             ]
             textView.typingAttributes = plainAttributes
             textView.insertText("\n• ")
+            isInternalChange = false
+            saveToUndoStack()
+            sendContentChange()
             return false
         }
 
@@ -968,13 +978,21 @@ class RichTextEditorView: UIView, UITextViewDelegate {
             let lineContent = String(currentLine.dropFirst(match.range.length))
 
             if lineContent.trimmingCharacters(in: .whitespaces).isEmpty {
-                let deleteRange = NSRange(location: lineStart, length: lineLength)
-                textView.selectedRange = deleteRange
-                textView.insertText("")
+                isInternalChange = true
+                let deleteRange = NSRange(location: lineStart, length: range.location - lineStart)
+                let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
+                mutable.deleteCharacters(in: deleteRange)
+                textView.attributedText = mutable
+                textView.selectedRange = NSRange(location: lineStart, length: 0)
+                isInternalChange = false
+                renumberNumberedLists()
+                saveToUndoStack()
+                sendContentChange()
                 return false
             }
 
             let nextNumber = currentNumber + 1
+            isInternalChange = true
             let plainAttributes: [NSAttributedString.Key: Any] = [
                 .font: UIFont.systemFont(ofSize: 16),
                 .foregroundColor: UIColor.label
@@ -982,6 +1000,37 @@ class RichTextEditorView: UIView, UITextViewDelegate {
             textView.typingAttributes = plainAttributes
             textView.insertText("\n\(nextNumber). ")
             renumberNumberedLists()
+            isInternalChange = false
+            saveToUndoStack()
+            sendContentChange()
+            return false
+        }
+
+        // Handle checklist Enter key
+        if currentLine.hasPrefix("☐ ") || currentLine.hasPrefix("☑ ") {
+            let lineContent = String(currentLine.dropFirst(2))
+            if lineContent.trimmingCharacters(in: .whitespaces).isEmpty {
+                isInternalChange = true
+                let deleteRange = NSRange(location: lineStart, length: range.location - lineStart)
+                let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
+                mutable.deleteCharacters(in: deleteRange)
+                textView.attributedText = mutable
+                textView.selectedRange = NSRange(location: lineStart, length: 0)
+                isInternalChange = false
+                saveToUndoStack()
+                sendContentChange()
+                return false
+            }
+            isInternalChange = true
+            let plainAttributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 16),
+                .foregroundColor: UIColor.label
+            ]
+            textView.typingAttributes = plainAttributes
+            textView.insertText("\n☐ ")
+            isInternalChange = false
+            saveToUndoStack()
+            sendContentChange()
             return false
         }
 
@@ -1096,6 +1145,8 @@ class RichTextEditorView: UIView, UITextViewDelegate {
 
         let nsText = text as NSString
         guard nsText.character(at: cursorPos - 1) == 10 else { return } // '\n'
+
+        if cursorPos >= 2 && nsText.character(at: cursorPos - 2) == 10 { return }
 
         var prevLineStart = cursorPos - 2
         while prevLineStart > 0 && nsText.character(at: prevLineStart - 1) != 10 {
@@ -2074,11 +2125,14 @@ class RichTextEditorView: UIView, UITextViewDelegate {
             }
 
             var styles: [[String: Any]] = []
-            let lineRange = NSRange(location: currentIndex, length: line.count)
+            let prefixLength = line.count - displayText.count
+            let styleRangeStart = currentIndex + prefixLength
+            let styleRangeLength = displayText.count
+            let styleLineRange = NSRange(location: styleRangeStart, length: styleRangeLength)
 
-            if lineRange.location + lineRange.length <= attributedText.length {
-                attributedText.enumerateAttributes(in: lineRange, options: []) { attrs, range, _ in
-                    let relativeStart = range.location - currentIndex
+            if styleLineRange.location + styleLineRange.length <= attributedText.length {
+                attributedText.enumerateAttributes(in: styleLineRange, options: []) { attrs, range, _ in
+                    let relativeStart = range.location - styleRangeStart
                     let relativeEnd = relativeStart + range.length
 
                     if let font = attrs[.font] as? UIFont {

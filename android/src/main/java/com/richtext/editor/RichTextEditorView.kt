@@ -164,8 +164,14 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
 
             override fun afterTextChanged(s: Editable?) {
                 if (!isInternalChange) {
-                    if (!handleBackspaceInListPrefix(s)) {
-                        autoContinueListOnEnter(s)
+                    var handled = handleBackspaceInListPrefix(s)
+                    if (!handled) {
+                        handled = autoContinueListOnEnter(s)
+                    }
+                    if (!handled) {
+                        isInternalChange = true
+                        renumberNumberedLists()
+                        isInternalChange = false
                     }
                     sendContentChangeWithDelta()
                     saveToUndoStack()
@@ -665,7 +671,6 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
             val maxHeightPx = maxHeightValue * density
             if (newHeightPx > maxHeightPx) {
                 isVerticalScrollBarEnabled = true
-                movementMethod = ScrollingMovementMethod.getInstance()
                 newHeightPx = maxHeightPx
             } else {
                 isVerticalScrollBarEnabled = false
@@ -913,6 +918,8 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
                 val styleName = styleInfo["style"] as? String ?: continue
                 val start = (styleInfo["start"] as? Number)?.toInt() ?: 0
                 val end = (styleInfo["end"] as? Number)?.toInt() ?: textContent.length
+
+                if (start >= end || end > textContent.length) continue
 
                 val absoluteStart = textStart + start
                 val absoluteEnd = textStart + end
@@ -1347,19 +1354,32 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
     private fun toggleListPrefix(prefix: String) {
         val (lineStart, lineEnd) = getLineRange()
         val currentText = text?.toString() ?: return
-        val lineText = currentText.substring(lineStart, lineEnd)
+        val selectedText = currentText.substring(lineStart, lineEnd)
+        val lines = selectedText.split("\n")
+
+        val numberedRegex = Regex("^\\d+\\.\\s")
+
+        // Check if all non-empty lines already have this prefix
+        val allHavePrefix = lines.all { it.trimEnd().isEmpty() || it.startsWith(prefix) }
+
+        val newLines = lines.map { line ->
+            if (line.trimEnd().isEmpty()) return@map line
+            if (allHavePrefix) {
+                // Remove prefix
+                if (line.startsWith(prefix)) line.substring(prefix.length) else line
+            } else {
+                // Remove any existing prefix, then add the new one
+                val cleanLine = removeExistingPrefix(line)
+                prefix + cleanLine
+            }
+        }
+
+        val newText = newLines.joinToString("\n")
 
         isInternalChange = true
         val editable = text ?: return
-
-        if (lineText.startsWith(prefix)) {
-            // Remove prefix
-            editable.delete(lineStart, lineStart + prefix.length)
-        } else {
-            // Remove other prefixes first
-            val cleanLine = removeExistingPrefix(lineText)
-            editable.replace(lineStart, lineEnd, prefix + cleanLine)
-        }
+        editable.replace(lineStart, lineEnd, newText)
+        setSelection(lineStart, lineStart + newText.length)
         isInternalChange = false
         sendContentChange()
         updateToolbarButtonStates()
@@ -1368,22 +1388,33 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
     private fun applyNumberedList() {
         val (lineStart, lineEnd) = getLineRange()
         val currentText = text?.toString() ?: return
-        val lineText = currentText.substring(lineStart, lineEnd)
+        val selectedText = currentText.substring(lineStart, lineEnd)
+        val lines = selectedText.split("\n")
+
+        val numberedRegex = Regex("^\\d+\\.\\s")
+
+        // Check if all non-empty lines already have numbered prefix
+        val allHaveNumbered = lines.all { it.trimEnd().isEmpty() || numberedRegex.containsMatchIn(it) }
+
+        val newLines = lines.mapIndexed { index, line ->
+            if (line.trimEnd().isEmpty()) return@mapIndexed line
+            if (allHaveNumbered) {
+                // Remove numbered prefix
+                val match = numberedRegex.find(line)
+                if (match != null) line.substring(match.value.length) else line
+            } else {
+                // Remove any existing prefix, then add numbered prefix
+                val cleanLine = removeExistingPrefix(line)
+                "${index + 1}. $cleanLine"
+            }
+        }
+
+        val newText = newLines.joinToString("\n")
 
         isInternalChange = true
         val editable = text ?: return
-
-        val numberedRegex = Regex("^(\\d+)\\.\\s")
-        val match = numberedRegex.find(lineText)
-
-        if (match != null) {
-            // Remove numbered prefix
-            editable.delete(lineStart, lineStart + match.value.length)
-        } else {
-            // Add numbered prefix
-            val cleanLine = removeExistingPrefix(lineText)
-            editable.replace(lineStart, lineEnd, "1. $cleanLine")
-        }
+        editable.replace(lineStart, lineEnd, newText)
+        setSelection(lineStart, lineStart + newText.length)
         renumberNumberedLists()
         isInternalChange = false
         sendContentChange()
@@ -1432,11 +1463,13 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         return true
     }
 
-    private fun autoContinueListOnEnter(s: Editable?) {
-        if (s == null) return
+    private fun autoContinueListOnEnter(s: Editable?): Boolean {
+        if (s == null) return false
         val cursorPos = selectionStart
-        if (cursorPos <= 0 || cursorPos > s.length) return
-        if (s[cursorPos - 1] != '\n') return
+        if (cursorPos <= 0 || cursorPos > s.length) return false
+        if (s[cursorPos - 1] != '\n') return false
+
+        if (cursorPos >= 2 && s[cursorPos - 2] == '\n') return false
 
         val text = s.toString()
         var prevLineStart = cursorPos - 2
@@ -1451,8 +1484,9 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
             if (content.isBlank()) {
                 isInternalChange = true
                 s.delete(prevLineStart, cursorPos)
+                setSelection(prevLineStart.coerceAtMost(s.length))
                 isInternalChange = false
-                return
+                return true
             }
             val nextNum = (numberedMatch.groupValues[1].toIntOrNull() ?: 0) + 1
             val prefix = "$nextNum. "
@@ -1461,7 +1495,7 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
             setSelection(cursorPos + prefix.length)
             renumberNumberedLists()
             isInternalChange = false
-            return
+            return true
         }
 
         if (prevLine.startsWith("• ")) {
@@ -1469,14 +1503,15 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
             if (content.isBlank()) {
                 isInternalChange = true
                 s.delete(prevLineStart, cursorPos)
+                setSelection(prevLineStart.coerceAtMost(s.length))
                 isInternalChange = false
-                return
+                return true
             }
             isInternalChange = true
             s.insert(cursorPos, "• ")
             setSelection(cursorPos + 2)
             isInternalChange = false
-            return
+            return true
         }
 
         if (prevLine.startsWith("☐ ") || prevLine.startsWith("☑ ")) {
@@ -1484,15 +1519,18 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
             if (content.isBlank()) {
                 isInternalChange = true
                 s.delete(prevLineStart, cursorPos)
+                setSelection(prevLineStart.coerceAtMost(s.length))
                 isInternalChange = false
-                return
+                return true
             }
             isInternalChange = true
             s.insert(cursorPos, "☐ ")
             setSelection(cursorPos + 2)
             isInternalChange = false
-            return
+            return true
         }
+
+        return false
     }
 
     private fun renumberNumberedLists() {

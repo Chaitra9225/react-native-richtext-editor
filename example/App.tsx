@@ -41,6 +41,26 @@ function App(): React.JSX.Element {
       styles: [{ style: 'bold', start: 0, end: 4 }],
     },
     {
+      type: 'numbered',
+      text: 'First bullet item with bold text',
+      styles: [{ style: 'bold', start: 23, end: 32 }],
+    },
+    {
+      type: 'bullet',
+      text: 'Second bullet item with italic',
+      styles: [{ style: 'italic', start: 24, end: 30 }],
+    },
+    {
+      type: 'numbered',
+      text: 'First numbered item',
+      styles: [{ style: 'underline', start: 0, end: 5 }],
+    },
+    {
+      type: 'numbered',
+      text: 'Second numbered item with strikethrough',
+      styles: [{ style: 'strikethrough', start: 25, end: 38 }],
+    },
+    {
       type: 'paragraph',
       text: 'This second paragraph adds more content to demonstrate the ellipsis truncation behavior.',
       styles: [{ style: 'italic', start: 5, end: 11 }],
@@ -64,8 +84,8 @@ function App(): React.JSX.Element {
           style={styles.editor}
           initialContent={sampleContent}
           readOnly
-          numberOfLines={2}
           variant="flat"
+          numberOfLines={4}
         />
       </View>
 
