@@ -1,6 +1,7 @@
 package com.richtext.editor
 
 import android.content.Context
+import android.content.ClipboardManager
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -20,11 +21,22 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.InputConnection
 import android.widget.PopupWindow
 import android.widget.FrameLayout
 import android.app.AlertDialog
+import android.net.Uri
 import android.widget.EditText
 import android.widget.LinearLayout
+import android.webkit.MimeTypeMap
+import androidx.activity.ComponentActivity
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.view.ContentInfoCompat
+import androidx.core.view.ViewCompat
+import androidx.core.view.inputmethod.EditorInfoCompat
+import androidx.core.view.inputmethod.InputConnectionCompat
+import androidx.core.view.inputmethod.InputContentInfoCompat
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReactContext
 import com.facebook.react.bridge.WritableArray
@@ -33,6 +45,10 @@ import com.facebook.react.uimanager.events.RCTEventEmitter
 
 class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompatEditText(context),
     FloatingToolbar.ToolbarActionListener {
+
+    companion object {
+        private const val MEDIA_PLACEHOLDER_CHAR = '\uFFFC'
+    }
 
     private var placeholder: String = ""
     private var maxHeightValue: Int = 0
@@ -49,6 +65,31 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
     private var previousText: String = ""
     private var pendingDelta: Map<String, Any>? = null
     private var pendingPrefixDeletion: Pair<Int, Int>? = null // (lineStart, prefixLength) for backspace-in-prefix
+    private var imagePickerLauncher: ActivityResultLauncher<String>? = null
+    private val imagePickerLauncherKey = "richtext_image_picker_${hashCode()}"
+    private val mediaAttachmentSupport by lazy {
+        MediaAttachmentSupport(
+            context = context,
+            density = density,
+            placeholderChar = MEDIA_PLACEHOLDER_CHAR,
+            getTargetWidthPx = {
+                val contentWidth = width - totalPaddingLeft - totalPaddingRight
+                if (contentWidth > 0) {
+                    contentWidth
+                } else {
+                    (context.resources.displayMetrics.widthPixels - totalPaddingLeft - totalPaddingRight)
+                        .coerceAtLeast((120 * density).toInt())
+                }
+            },
+            editableProvider = { text },
+            runOnUiThread = { action -> post(action) },
+            onMediaSpansUpdated = {
+                invalidate()
+                requestLayout()
+                post { updateContentSize() }
+            }
+        )
+    }
 
     // For flat variant bottom border
     private val bottomBorderPaint = Paint().apply {
@@ -103,6 +144,7 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         isFocusable = true
         isFocusableInTouchMode = true
         inputType = EditorInfo.TYPE_CLASS_TEXT or EditorInfo.TYPE_TEXT_FLAG_MULTI_LINE
+        setupImageReceiveContentHandler()
 
         // Disable vertical scrolling by default
         isVerticalScrollBarEnabled = false
@@ -192,6 +234,51 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         }
 
         isInitialized = true
+    }
+
+    // Handle image pasting from clipboard and input method
+    override fun onCreateInputConnection(outAttrs: EditorInfo): InputConnection? {
+        val inputConnection = super.onCreateInputConnection(outAttrs) ?: return null
+        EditorInfoCompat.setContentMimeTypes(outAttrs, arrayOf("image/*"))
+
+        return InputConnectionCompat.createWrapper(
+            inputConnection,
+            outAttrs
+        ) { inputContentInfo: InputContentInfoCompat, flags: Int, _ ->
+            if ((flags and InputConnectionCompat.INPUT_CONTENT_GRANT_READ_URI_PERMISSION) != 0) {
+                runCatching { inputContentInfo.requestPermission() }
+            }
+
+            val uri = inputContentInfo.contentUri
+            if (isImageUri(uri)) {
+                post { insertMediaAttachmentBlock(uri.toString()) }
+                true
+            } else {
+                false
+            }
+        }
+    }
+
+    // Handle receiving images via drag-and-drop or clipboard paste (Android 13+)
+    private fun setupImageReceiveContentHandler() {
+        ViewCompat.setOnReceiveContentListener(this, arrayOf("image/*")) { _, payload: ContentInfoCompat ->
+            val clip = payload.clip
+            if (clip == null || clip.itemCount == 0) {
+                return@setOnReceiveContentListener payload
+            }
+
+            var handled = false
+            for (index in 0 until clip.itemCount) {
+                val item = clip.getItemAt(index)
+                val uri = item.uri
+                if (uri != null && isImageUri(uri)) {
+                    insertMediaAttachmentBlock(uri.toString())
+                    handled = true
+                }
+            }
+
+            if (handled) null else payload
+        }
     }
 
     private fun setupToolbar() {
@@ -571,6 +658,49 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         return super.onTouchEvent(event)
     }
 
+    // Handle image pasting from clipboard (Android 13+ also sends via onReceiveContent)
+    override fun onTextContextMenuItem(id: Int): Boolean {
+        val isPasteAction = id == android.R.id.paste || id == android.R.id.pasteAsPlainText
+        if (!isPasteAction) {
+            return super.onTextContextMenuItem(id)
+        }
+
+        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+            ?: return super.onTextContextMenuItem(id)
+        val primaryClip = clipboard.primaryClip ?: return super.onTextContextMenuItem(id)
+
+        val imageUris = mutableListOf<Uri>()
+        for (index in 0 until primaryClip.itemCount) {
+            val item = primaryClip.getItemAt(index)
+            item.uri?.let { uri ->
+                if (isImageUri(uri)) {
+                    imageUris.add(uri)
+                }
+            }
+
+            val maybeUriText = item.text?.toString()?.trim().orEmpty()
+            if (maybeUriText.isNotEmpty()) {
+                runCatching { Uri.parse(maybeUriText) }
+                    .getOrNull()
+                    ?.let { parsed ->
+                        if (parsed.scheme != null && isImageUri(parsed)) {
+                            imageUris.add(parsed)
+                        }
+                    }
+            }
+        }
+
+        if (imageUris.isEmpty()) {
+            return super.onTextContextMenuItem(id)
+        }
+
+        imageUris
+            .distinctBy { it.toString() }
+            .forEach { insertMediaAttachmentBlock(it.toString()) }
+
+        return true
+    }
+
     private fun selectWordAtPosition(x: Float, y: Float) {
         val layout = layout ?: return
         val textContent = text?.toString() ?: return
@@ -599,6 +729,38 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         if (start < end) {
             setSelection(start, end)
         }
+    }
+
+    private fun isImageUri(uri: Uri): Boolean {
+        val scheme = uri.scheme?.lowercase()
+
+        if (scheme == "http" || scheme == "https") {
+            val path = uri.path.orEmpty()
+            return path.endsWith(".png", true) ||
+                path.endsWith(".jpg", true) ||
+                path.endsWith(".jpeg", true) ||
+                path.endsWith(".webp", true) ||
+                path.endsWith(".gif", true) ||
+                path.endsWith(".bmp", true)
+        }
+
+        val mimeType = runCatching {
+            context.contentResolver.getType(uri)
+        }.getOrNull()
+
+        if (mimeType?.startsWith("image/") == true) {
+            return true
+        }
+
+        val extension = MimeTypeMap.getFileExtensionFromUrl(uri.toString())
+        if (!extension.isNullOrEmpty()) {
+            val guessedMime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension.lowercase())
+            if (guessedMime?.startsWith("image/") == true) {
+                return true
+            }
+        }
+
+        return false
     }
 
     override fun onDraw(canvas: Canvas) {
@@ -878,6 +1040,18 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
             val textContent = block["text"] as? String ?: ""
             val blockType = block["type"] as? String ?: "paragraph"
 
+            if (blockType == "mediaAttachment") {
+                numberedListCounter = 1
+                val mediaData = mediaAttachmentSupport.parseMediaData(block) ?: return@forEachIndexed
+                currentOffset = mediaAttachmentSupport.appendMediaBlock(
+                    spannable = spannable,
+                    currentOffset = currentOffset,
+                    mediaData = mediaData,
+                    appendTrailingNewline = index < blocks.size - 1
+                )
+                return@forEachIndexed
+            }
+
             // Add list prefix based on block type
             val prefix = when (blockType) {
                 "bullet", "bulletList" -> "• "
@@ -1042,6 +1216,19 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         val lines = textContent.split("\n")
         var currentIndex = 0
         lines.forEach { line ->
+            val lineStart = currentIndex
+            val lineEnd = currentIndex + line.length
+
+            val mediaSpan = mediaAttachmentSupport.findMediaAttachmentSpan(spannable, lineStart, lineEnd)
+            if (mediaSpan != null && mediaAttachmentSupport.isMediaLine(line)) {
+                val mediaData = mediaSpan.toMediaAttachmentData()
+                val block = mediaAttachmentSupport.createWritableMediaBlock(mediaData)
+
+                blocks.pushMap(block)
+                currentIndex += line.length + 1
+                return@forEach
+            }
+
             val (blockType, displayText) = detectBlockType(line)
             val prefixLen = line.length - displayText.length
 
@@ -1050,9 +1237,8 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
             block.putString("text", displayText)
 
             val stylesArray = Arguments.createArray()
-            val lineStart = currentIndex + prefixLen
-            val lineEnd = currentIndex + line.length
-            extractStylesForRange(spannable, lineStart, lineEnd).forEach { style ->
+            val styleStart = currentIndex + prefixLen
+            extractStylesForRange(spannable, styleStart, lineEnd).forEach { style ->
                 val styleMap = Arguments.createMap()
                 styleMap.putString("style", style["style"] as String)
                 styleMap.putInt("start", style["start"] as Int)
@@ -1076,6 +1262,19 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         val lines = textContent.split("\n")
         var currentIndex = 0
         lines.forEach { line ->
+            val lineStart = currentIndex
+            val lineEnd = currentIndex + line.length
+
+            val mediaSpan = mediaAttachmentSupport.findMediaAttachmentSpan(spannable, lineStart, lineEnd)
+            if (mediaSpan != null && mediaAttachmentSupport.isMediaLine(line)) {
+                val mediaData = mediaSpan.toMediaAttachmentData()
+                val block = mediaAttachmentSupport.createJsonMediaBlock(mediaData)
+
+                jsonArray.put(block)
+                currentIndex += line.length + 1
+                return@forEach
+            }
+
             val (blockType, displayText) = detectBlockType(line)
             val prefixLen = line.length - displayText.length
 
@@ -1084,9 +1283,8 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
             block.put("text", displayText)
 
             val stylesJson = org.json.JSONArray()
-            val lineStart = currentIndex + prefixLen
-            val lineEnd = currentIndex + line.length
-            extractStylesForRange(spannable, lineStart, lineEnd).forEach { style ->
+            val styleStart = currentIndex + prefixLen
+            extractStylesForRange(spannable, styleStart, lineEnd).forEach { style ->
                 val styleObj = org.json.JSONObject()
                 styleObj.put("style", style["style"])
                 styleObj.put("start", style["start"])
@@ -1242,6 +1440,10 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
 
     override fun onChecklistClick() {
         toggleChecklistPrefix()
+    }
+
+    override fun onMediaAttachmentClick() {
+        openImagePicker()
     }
 
     override fun onLinkClick() {
@@ -1621,6 +1823,41 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         }
     }
 
+    private fun openImagePicker() {
+        val reactContext = context as? ReactContext ?: return
+        val activity = reactContext.currentActivity ?: return
+
+        if (activity !is ComponentActivity) {
+            return
+        }
+
+        if (imagePickerLauncher == null) {
+            imagePickerLauncher = activity.activityResultRegistry.register(
+                imagePickerLauncherKey,
+                ActivityResultContracts.GetContent()
+            ) { uri: Uri? ->
+                if (uri == null) return@register
+                insertMediaAttachmentBlock(uri.toString())
+            }
+        }
+
+        imagePickerLauncher?.launch("image/*")
+    }
+
+    private fun insertMediaAttachmentBlock(uri: String) {
+        val editable = text ?: return
+        var insertPos = selectionStart.coerceIn(0, editable.length)
+
+        isInternalChange = true
+        val nextPos = mediaAttachmentSupport.insertMediaAttachmentBlock(editable, insertPos, uri)
+        setSelection(nextPos.coerceAtMost(editable.length))
+
+        isInternalChange = false
+        sendContentChange()
+        saveToUndoStack()
+        post { updateContentSize() }
+    }
+
     private fun promptInsertLink() {
         val context = context
         val builder = AlertDialog.Builder(context)
@@ -1828,6 +2065,8 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
 
     override fun onDetachedFromWindow() {
         super.onDetachedFromWindow()
+        imagePickerLauncher?.unregister()
+        imagePickerLauncher = null
         hideToolbar()
         toolbarPopup = null
         floatingToolbar = null

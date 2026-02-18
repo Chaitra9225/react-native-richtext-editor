@@ -116,6 +116,18 @@ class RichTextEditorViewManager : SimpleViewManager<RichTextEditorView>() {
                     }
                 }
                 blockMap["styles"] = stylesList
+
+                val mediaAttachment = block.optJSONObject("mediaAttachment")
+                if (mediaAttachment != null) {
+                    val mediaMap = mutableMapOf<String, Any>()
+                    mediaMap["kind"] = mediaAttachment.optString("kind", "image")
+                    mediaMap["uri"] = mediaAttachment.optString("uri", "")
+                    mediaMap["width"] = mediaAttachment.optInt("width", 100)
+                    mediaMap["height"] = mediaAttachment.optInt("height", 100)
+                    mediaMap["alt"] = mediaAttachment.optString("alt", "")
+                    blockMap["mediaAttachment"] = mediaMap
+                }
+
                 blocksList.add(blockMap)
             }
             view.post {

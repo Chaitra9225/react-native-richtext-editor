@@ -1,14 +1,21 @@
-import React, { forwardRef, useImperativeHandle, useRef, useCallback, useState } from 'react';
-import { StyleSheet } from 'react-native';
+import React, {
+  forwardRef,
+  useImperativeHandle,
+  useRef,
+  useCallback,
+  useState,
+} from "react";
+import { StyleSheet } from "react-native";
 import type {
   Block,
+  MediaAttachment,
   TextAlignment,
   ContentChangeEvent,
   SelectionChangeEvent,
   RichTextEditorProps,
   RichTextEditorRef,
-} from './types';
-import RichTextEditorViewNative from './RichTextEditorViewNativeComponent';
+} from "./types";
+import RichTextEditorViewNative from "./RichTextEditorViewNativeComponent";
 
 interface SizeChangeEvent {
   nativeEvent: {
@@ -35,8 +42,12 @@ export interface RichTextEditorPropsExtended extends RichTextEditorProps {
   onActiveStylesChange?: (styles: ActiveStylesState) => void;
 }
 
-const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorPropsExtended>((props, ref) => {
-  const nativeRef = useRef<React.ElementRef<typeof RichTextEditorViewNative>>(null);
+const RichTextEditor = forwardRef<
+  RichTextEditorRef,
+  RichTextEditorPropsExtended
+>((props, ref) => {
+  const nativeRef =
+    useRef<React.ElementRef<typeof RichTextEditorViewNative>>(null);
   const [height, setHeight] = useState<number>(44);
 
   const handleSizeChange = useCallback((event: SizeChangeEvent) => {
@@ -51,7 +62,7 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorPropsExtended
     setContent: (_blocks: Block[]) => {
       /* Native toolbar handles this */
     },
-    getText: async (): Promise<string> => '',
+    getText: async (): Promise<string> => "",
     getBlocks: async (): Promise<Block[]> => [],
     clear: () => {
       /* Native toolbar handles this */
@@ -99,6 +110,9 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorPropsExtended
       /* Native toolbar handles this */
     },
     insertLink: (_url: string, _text: string) => {
+      /* Native toolbar handles this */
+    },
+    insertMediaAttachment: (_mediaAttachment: MediaAttachment) => {
       /* Native toolbar handles this */
     },
     undo: () => {
@@ -189,13 +203,15 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorPropsExtended
       ref={nativeRef}
       style={combinedStyle}
       placeholder={props.placeholder}
-      initialContentJson={props.initialContent ? JSON.stringify(props.initialContent) : undefined}
+      initialContentJson={
+        props.initialContent ? JSON.stringify(props.initialContent) : undefined
+      }
       editable={props.readOnly !== undefined ? !props.readOnly : true}
       maxHeight={props.maxHeight}
       numberOfLines={props.numberOfLines}
-      showToolbar={props.readOnly ? false : props.showToolbar ?? true}
+      showToolbar={props.readOnly ? false : (props.showToolbar ?? true)}
       toolbarOptions={props.toolbarOptions}
-      variant={props.variant ?? 'outlined'}
+      variant={props.variant ?? "outlined"}
       onContentChange={handleContentChange}
       onSelectionChange={handleSelectionChange}
       onEditorFocus={handleFocus}
@@ -206,14 +222,15 @@ const RichTextEditor = forwardRef<RichTextEditorRef, RichTextEditorPropsExtended
   );
 });
 
-RichTextEditor.displayName = 'RichTextEditor';
+RichTextEditor.displayName = "RichTextEditor";
 
 export default RichTextEditor;
-export { DEFAULT_TOOLBAR_OPTIONS } from './types';
+export { DEFAULT_TOOLBAR_OPTIONS } from "./types";
 export type {
   Block,
   BlockType,
   StyleRange,
+  MediaAttachment,
   TextAlignment,
   EditorVariant,
   ContentChangeEvent,
@@ -223,4 +240,4 @@ export type {
   ToolbarOption,
   ContentDelta,
   DeltaType,
-} from './types';
+} from "./types";
