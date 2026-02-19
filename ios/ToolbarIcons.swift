@@ -17,6 +17,7 @@ class ToolbarIcons {
         case "numbered": return drawNumberedListIcon(color: color, size: size)
         case "quote": return drawQuoteIcon(color: color, size: size)
         case "checklist": return drawChecklistIcon(color: color, size: size)
+        case "mediaAttachment": return drawMediaAttachmentIcon(color: color, size: size)
         case "link": return drawLinkIcon(color: color, size: size)
         case "undo": return drawUndoIcon(color: color, size: size)
         case "redo": return drawRedoIcon(color: color, size: size)
@@ -379,6 +380,29 @@ class ToolbarIcons {
             path.close()
 
             path.fill()
+        }
+    }
+
+    private static func drawMediaAttachmentIcon(color: UIColor, size: CGSize) -> UIImage {
+        return drawIcon(size: size, color: color) { ctx, scale in
+            let frame = CGRect(x: 3 * scale, y: 5 * scale, width: 18 * scale, height: 14 * scale)
+            let framePath = UIBezierPath(roundedRect: frame, cornerRadius: 1.8 * scale)
+            ctx.setLineWidth(1.8 * scale)
+            ctx.addPath(framePath.cgPath)
+            ctx.strokePath()
+
+            let sunPath = UIBezierPath(arcCenter: CGPoint(x: 8 * scale, y: 10 * scale), radius: 1.5 * scale, startAngle: 0, endAngle: .pi * 2, clockwise: true)
+            sunPath.fill()
+
+            let mountain = UIBezierPath()
+            mountain.move(to: CGPoint(x: 6 * scale, y: 16 * scale))
+            mountain.addLine(to: CGPoint(x: 10.5 * scale, y: 11.5 * scale))
+            mountain.addLine(to: CGPoint(x: 13 * scale, y: 14 * scale))
+            mountain.addLine(to: CGPoint(x: 16 * scale, y: 11 * scale))
+            mountain.addLine(to: CGPoint(x: 18 * scale, y: 13 * scale))
+            mountain.addLine(to: CGPoint(x: 18 * scale, y: 16 * scale))
+            mountain.close()
+            mountain.fill()
         }
     }
 
