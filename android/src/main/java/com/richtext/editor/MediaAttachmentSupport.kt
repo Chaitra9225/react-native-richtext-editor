@@ -16,6 +16,7 @@ class MediaAttachmentSupport(
     private val context: Context,
     private val density: Float,
     private val placeholderChar: Char,
+    private val getLineSpacingMultiplier: () -> Float,
     private val getTargetWidthPx: () -> Int,
     private val editableProvider: () -> Editable?,
     private val runOnUiThread: ((() -> Unit) -> Unit),
@@ -45,10 +46,10 @@ class MediaAttachmentSupport(
         val loaded = loadBitmapForMedia(mediaData, targetWidthPx)
         return if (loaded != null) {
             val (bitmap, updatedData) = loaded
-            MediaAttachmentSpan(updatedData, density, bitmap)
+            MediaAttachmentSpan(updatedData, density, bitmap, getLineSpacingMultiplier())
         } else {
             val fallbackData = normalizeMediaDimensions(mediaData, targetWidthPx)
-            MediaAttachmentSpan(fallbackData, density, null)
+            MediaAttachmentSpan(fallbackData, density, null, getLineSpacingMultiplier())
         }
     }
 
@@ -279,7 +280,7 @@ class MediaAttachmentSupport(
                 val flags = editable.getSpanFlags(span)
                 editable.removeSpan(span)
                 editable.setSpan(
-                    MediaAttachmentSpan(updatedData, density, bitmap),
+                    MediaAttachmentSpan(updatedData, density, bitmap, getLineSpacingMultiplier()),
                     start,
                     end,
                     flags

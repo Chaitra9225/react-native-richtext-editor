@@ -11,12 +11,37 @@ class RichTextEditorViewManager : SimpleViewManager<RichTextEditorView>() {
 
     companion object {
         const val NAME = "RichTextEditorView"
+        private const val COMMAND_INSERT_MEDIA_ATTACHMENT = 1
     }
 
     override fun getName(): String = NAME
 
+    override fun getCommandsMap(): MutableMap<String, Int> {
+        return mutableMapOf(
+            "insertMediaAttachment" to COMMAND_INSERT_MEDIA_ATTACHMENT
+        )
+    }
+
     override fun createViewInstance(reactContext: ThemedReactContext): RichTextEditorView {
         return RichTextEditorView(reactContext)
+    }
+
+    override fun receiveCommand(view: RichTextEditorView, commandId: String?, args: ReadableArray?) {
+        when (commandId) {
+            "insertMediaAttachment" -> {
+                val uri = args?.getString(0)
+                view.insertMediaAttachment(uri)
+            }
+        }
+    }
+
+    override fun receiveCommand(view: RichTextEditorView, commandId: Int, args: ReadableArray?) {
+        when (commandId) {
+            COMMAND_INSERT_MEDIA_ATTACHMENT -> {
+                val uri = args?.getString(0)
+                view.insertMediaAttachment(uri)
+            }
+        }
     }
 
     @ReactProp(name = "placeholder")
