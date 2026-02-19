@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
 import android.text.style.ReplacementSpan
+import kotlin.math.ceil
 
 data class MediaAttachmentData(
     val kind: String,
@@ -18,10 +19,19 @@ data class MediaAttachmentData(
 class MediaAttachmentSpan(
     private val data: MediaAttachmentData,
     private val density: Float,
-    private val bitmap: Bitmap? = null
+    private val bitmap: Bitmap? = null,
+    private val lineSpacingMultiplier: Float = 1f
 ) : ReplacementSpan() {
 
     fun toMediaAttachmentData(): MediaAttachmentData = data
+
+    private fun getWidthPx(): Int {
+        return bitmap?.width ?: (data.widthDp * density).toInt().coerceAtLeast(1)
+    }
+
+    private fun getHeightPx(): Int {
+        return bitmap?.height ?: (data.heightDp * density).toInt().coerceAtLeast(1)
+    }
 
     override fun getSize(
         paint: Paint,
@@ -30,10 +40,15 @@ class MediaAttachmentSpan(
         end: Int,
         fm: Paint.FontMetricsInt?
     ): Int {
-        val widthPx = (data.widthDp * density).toInt()
+        val widthPx = getWidthPx()
         if (fm != null) {
-            val heightPx = (data.heightDp * density).toInt()
-            fm.ascent = -heightPx
+            val imageHeightPx = getHeightPx()
+            val metricsHeightPx = if (lineSpacingMultiplier > 1f) {
+                ceil(imageHeightPx / lineSpacingMultiplier).toInt().coerceAtLeast(1)
+            } else {
+                imageHeightPx
+            }
+            fm.ascent = -metricsHeightPx
             fm.descent = 0
             fm.top = fm.ascent
             fm.bottom = 0
@@ -52,11 +67,12 @@ class MediaAttachmentSpan(
         bottom: Int,
         paint: Paint
     ) {
-        val widthPx = data.widthDp * density
-        val heightPx = data.heightDp * density
+        val widthPx = getWidthPx().toFloat()
+        val heightPx = getHeightPx().toFloat()
         val oldColor = paint.color
         val oldStyle = paint.style
-        val rectTop = y - heightPx
+        val lineHeight = (bottom - top).toFloat().coerceAtLeast(heightPx)
+        val rectTop = top + ((lineHeight - heightPx) / 2f)
 
         if (bitmap != null) {
             val destRect = RectF(x, rectTop, x + widthPx, rectTop + heightPx)

@@ -5,7 +5,7 @@ import React, {
   useCallback,
   useState,
 } from "react";
-import { StyleSheet } from "react-native";
+import { findNodeHandle, Platform, StyleSheet, UIManager } from "react-native";
 import type {
   Block,
   MediaAttachment,
@@ -57,86 +57,108 @@ const RichTextEditor = forwardRef<
     }
   }, []);
 
+  const dispatchAndroidCommand = useCallback(
+    (commandName: string, args: (string | number | boolean)[] = []) => {
+      if (Platform.OS !== "android") return;
+
+      const nativeTag = findNodeHandle(nativeRef.current);
+      if (nativeTag == null) return;
+
+      const commandConfig =
+        UIManager.getViewManagerConfig("RichTextEditorView")?.Commands;
+      const commandId = commandConfig?.[commandName];
+
+      if (commandId == null) return;
+
+      UIManager.dispatchViewManagerCommand(nativeTag, commandId, args);
+    },
+    [],
+  );
+
   // These are placeholder methods for potential future UIManager.dispatchViewManagerCommand usage
-  useImperativeHandle(ref, () => ({
-    setContent: (_blocks: Block[]) => {
-      /* Native toolbar handles this */
-    },
-    getText: async (): Promise<string> => "",
-    getBlocks: async (): Promise<Block[]> => [],
-    clear: () => {
-      /* Native toolbar handles this */
-    },
-    focus: () => {
-      /* Native toolbar handles this */
-    },
-    blur: () => {
-      /* Native toolbar handles this */
-    },
-    toggleBold: () => {
-      /* Native toolbar handles this */
-    },
-    toggleItalic: () => {
-      /* Native toolbar handles this */
-    },
-    toggleUnderline: () => {
-      /* Native toolbar handles this */
-    },
-    toggleStrikethrough: () => {
-      /* Native toolbar handles this */
-    },
-    toggleCode: () => {
-      /* Native toolbar handles this */
-    },
-    toggleHighlight: (_color?: string) => {
-      /* Native toolbar handles this */
-    },
-    setHeading: () => {
-      /* Native toolbar handles this */
-    },
-    setBulletList: () => {
-      /* Native toolbar handles this */
-    },
-    setNumberedList: () => {
-      /* Native toolbar handles this */
-    },
-    setQuote: () => {
-      /* Native toolbar handles this */
-    },
-    setChecklist: () => {
-      /* Native toolbar handles this */
-    },
-    setParagraph: () => {
-      /* Native toolbar handles this */
-    },
-    insertLink: (_url: string, _text: string) => {
-      /* Native toolbar handles this */
-    },
-    insertMediaAttachment: (_mediaAttachment: MediaAttachment) => {
-      /* Native toolbar handles this */
-    },
-    undo: () => {
-      /* Native toolbar handles this */
-    },
-    redo: () => {
-      /* Native toolbar handles this */
-    },
-    clearFormatting: () => {
-      /* Native toolbar handles this */
-    },
-    indent: () => {
-      /* Native toolbar handles this */
-    },
-    outdent: () => {
-      /* Native toolbar handles this */
-    },
-    setAlignment: (_alignment: TextAlignment) => {
-      /* Native toolbar handles this */
-    },
-    toggleChecklistItem: () => {
-      /* Native toolbar handles this */
-    },
-  }));
+  useImperativeHandle(
+    ref,
+    () => ({
+      setContent: (_blocks: Block[]) => {
+        /* Native toolbar handles this */
+      },
+      getText: async (): Promise<string> => "",
+      getBlocks: async (): Promise<Block[]> => [],
+      clear: () => {
+        /* Native toolbar handles this */
+      },
+      focus: () => {
+        /* Native toolbar handles this */
+      },
+      blur: () => {
+        /* Native toolbar handles this */
+      },
+      toggleBold: () => {
+        /* Native toolbar handles this */
+      },
+      toggleItalic: () => {
+        /* Native toolbar handles this */
+      },
+      toggleUnderline: () => {
+        /* Native toolbar handles this */
+      },
+      toggleStrikethrough: () => {
+        /* Native toolbar handles this */
+      },
+      toggleCode: () => {
+        /* Native toolbar handles this */
+      },
+      toggleHighlight: (_color?: string) => {
+        /* Native toolbar handles this */
+      },
+      setHeading: () => {
+        /* Native toolbar handles this */
+      },
+      setBulletList: () => {
+        /* Native toolbar handles this */
+      },
+      setNumberedList: () => {
+        /* Native toolbar handles this */
+      },
+      setQuote: () => {
+        /* Native toolbar handles this */
+      },
+      setChecklist: () => {
+        /* Native toolbar handles this */
+      },
+      setParagraph: () => {
+        /* Native toolbar handles this */
+      },
+      insertLink: (_url: string, _text: string) => {
+        /* Native toolbar handles this */
+      },
+      insertMediaAttachment: (mediaAttachment: MediaAttachment) => {
+        dispatchAndroidCommand("insertMediaAttachment", [mediaAttachment.uri]);
+      },
+      undo: () => {
+        /* Native toolbar handles this */
+      },
+      redo: () => {
+        /* Native toolbar handles this */
+      },
+      clearFormatting: () => {
+        /* Native toolbar handles this */
+      },
+      indent: () => {
+        /* Native toolbar handles this */
+      },
+      outdent: () => {
+        /* Native toolbar handles this */
+      },
+      setAlignment: (_alignment: TextAlignment) => {
+        /* Native toolbar handles this */
+      },
+      toggleChecklistItem: () => {
+        /* Native toolbar handles this */
+      },
+    }),
+    [dispatchAndroidCommand],
+  );
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handleContentChange = useCallback(

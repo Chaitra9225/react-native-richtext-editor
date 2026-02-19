@@ -72,6 +72,7 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
             context = context,
             density = density,
             placeholderChar = MEDIA_PLACEHOLDER_CHAR,
+            getLineSpacingMultiplier = { lineSpacingMultiplier },
             getTargetWidthPx = {
                 val contentWidth = width - totalPaddingLeft - totalPaddingRight
                 if (contentWidth > 0) {
@@ -1856,6 +1857,12 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         sendContentChange()
         saveToUndoStack()
         post { updateContentSize() }
+    }
+
+    fun insertMediaAttachment(uri: String?) {
+        val safeUri = uri?.trim().orEmpty()
+        if (safeUri.isEmpty()) return
+        insertMediaAttachmentBlock(safeUri)
     }
 
     private fun promptInsertLink() {
