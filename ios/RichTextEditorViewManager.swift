@@ -72,6 +72,14 @@ class RichTextEditorViewManager: RCTViewManager {
         }
     }
 
+    @objc func insertMediaAttachment(_ node: NSNumber, uri: NSString) {
+        DispatchQueue.main.async {
+            if let view = self.bridge?.uiManager.view(forReactTag: node) as? RichTextEditorView {
+                view.insertMediaAttachment(uri: uri as String)
+            }
+        }
+    }
+
     @objc func undo(_ node: NSNumber) {
         DispatchQueue.main.async {
             if let view = self.bridge?.uiManager.view(forReactTag: node) as? RichTextEditorView {

@@ -34,6 +34,7 @@ class FloatingToolbar(context: Context) : LinearLayout(context) {
         fun onNumberedListClick()
         fun onQuoteClick()
         fun onChecklistClick()
+        fun onMediaAttachmentClick()
         fun onLinkClick()
         fun onUndoClick()
         fun onRedoClick()
@@ -63,6 +64,7 @@ class FloatingToolbar(context: Context) : LinearLayout(context) {
     private var enabledOptions: List<String> = listOf(
         "bold", "italic", "underline", "strikethrough", "code", "highlight",
         "heading", "bullet", "numbered", "quote", "checklist",
+        "mediaAttachment",
         "link", "undo", "redo", "clearFormatting",
         "indent", "outdent",
         "alignLeft", "alignCenter", "alignRight"
@@ -143,6 +145,7 @@ class FloatingToolbar(context: Context) : LinearLayout(context) {
         enabledOptions = options ?: listOf(
             "bold", "italic", "underline", "strikethrough", "code", "highlight",
             "heading", "bullet", "numbered", "quote", "checklist",
+            "mediaAttachment",
             "link", "undo", "redo", "clearFormatting",
             "indent", "outdent",
             "alignLeft", "alignCenter", "alignRight"
@@ -176,6 +179,7 @@ class FloatingToolbar(context: Context) : LinearLayout(context) {
             "numbered" -> R.drawable.ic_format_list_numbered
             "quote" -> R.drawable.ic_format_quote
             "checklist" -> R.drawable.ic_format_checklist
+            "mediaAttachment" -> R.drawable.ic_format_media_attachment
             "link" -> R.drawable.ic_format_link
             "undo" -> R.drawable.ic_format_undo
             "redo" -> R.drawable.ic_format_redo
@@ -227,6 +231,7 @@ class FloatingToolbar(context: Context) : LinearLayout(context) {
             "numbered" -> button.setOnClickListener { listener?.onNumberedListClick() }
             "quote" -> button.setOnClickListener { listener?.onQuoteClick() }
             "checklist" -> button.setOnClickListener { listener?.onChecklistClick() }
+            "mediaAttachment" -> button.setOnClickListener { listener?.onMediaAttachmentClick() }
             "link" -> button.setOnClickListener { listener?.onLinkClick() }
             "undo" -> button.setOnClickListener { listener?.onUndoClick() }
             "redo" -> button.setOnClickListener { listener?.onRedoClick() }
@@ -253,6 +258,7 @@ class FloatingToolbar(context: Context) : LinearLayout(context) {
         numbered: Boolean = false,
         quote: Boolean = false,
         checklist: Boolean = false,
+        mediaAttachment: Boolean = false,
         alignLeft: Boolean = true,
         alignCenter: Boolean = false,
         alignRight: Boolean = false
@@ -269,6 +275,7 @@ class FloatingToolbar(context: Context) : LinearLayout(context) {
             "numbered" to numbered,
             "quote" to quote,
             "checklist" to checklist,
+            "mediaAttachment" to mediaAttachment,
             "alignLeft" to alignLeft,
             "alignCenter" to alignCenter,
             "alignRight" to alignRight
