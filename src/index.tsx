@@ -1,11 +1,11 @@
-import React, {
-  forwardRef,
-  useImperativeHandle,
-  useRef,
-  useCallback,
-  useState,
-} from "react";
-import { findNodeHandle, Platform, StyleSheet, UIManager } from "react-native";
+import React from "react";
+import {
+  findNodeHandle,
+  NativeModules,
+  Platform,
+  StyleSheet,
+  UIManager,
+} from "react-native";
 import type {
   Block,
   MediaAttachment,
@@ -42,22 +42,22 @@ export interface RichTextEditorPropsExtended extends RichTextEditorProps {
   onActiveStylesChange?: (styles: ActiveStylesState) => void;
 }
 
-const RichTextEditor = forwardRef<
+const RichTextEditor = React.forwardRef<
   RichTextEditorRef,
   RichTextEditorPropsExtended
 >((props, ref) => {
   const nativeRef =
-    useRef<React.ElementRef<typeof RichTextEditorViewNative>>(null);
-  const [height, setHeight] = useState<number>(44);
+    React.useRef<React.ElementRef<typeof RichTextEditorViewNative>>(null);
+  const [height, setHeight] = React.useState<number>(44);
 
-  const handleSizeChange = useCallback((event: SizeChangeEvent) => {
+  const handleSizeChange = React.useCallback((event: SizeChangeEvent) => {
     const newHeight = event.nativeEvent?.height;
     if (newHeight && newHeight > 0) {
       setHeight(newHeight);
     }
   }, []);
 
-  const dispatchAndroidCommand = useCallback(
+  const dispatchAndroidCommand = React.useCallback(
     (commandName: string, args: (string | number | boolean)[] = []) => {
       if (Platform.OS !== "android") return;
 
@@ -75,8 +75,44 @@ const RichTextEditor = forwardRef<
     [],
   );
 
+  const dispatchInsertMediaAttachment = React.useCallback(
+    (uri: string) => {
+      if (typeof uri !== "string" || uri.trim().length === 0) return;
+
+      if (Platform.OS === "android") {
+        dispatchAndroidCommand("insertMediaAttachment", [uri]);
+        return;
+      }
+
+      if (Platform.OS === "ios") {
+        const nativeTag = findNodeHandle(nativeRef.current);
+        if (nativeTag == null) return;
+
+        const manager = NativeModules
+          ? (NativeModules as Record<string, unknown>)[
+              "RichTextEditorViewManager"
+            ]
+          : null;
+
+        if (
+          manager &&
+          typeof manager === "object" &&
+          typeof (manager as { insertMediaAttachment?: unknown })
+            .insertMediaAttachment === "function"
+        ) {
+          (
+            manager as {
+              insertMediaAttachment: (tag: number, value: string) => void;
+            }
+          ).insertMediaAttachment(nativeTag, uri);
+        }
+      }
+    },
+    [dispatchAndroidCommand],
+  );
+
   // These are placeholder methods for potential future UIManager.dispatchViewManagerCommand usage
-  useImperativeHandle(
+  React.useImperativeHandle(
     ref,
     () => ({
       setContent: (_blocks: Block[]) => {
@@ -133,7 +169,13 @@ const RichTextEditor = forwardRef<
         /* Native toolbar handles this */
       },
       insertMediaAttachment: (mediaAttachment: MediaAttachment) => {
-        dispatchAndroidCommand("insertMediaAttachment", [mediaAttachment.uri]);
+        if (
+          mediaAttachment &&
+          typeof mediaAttachment === "object" &&
+          typeof mediaAttachment.uri === "string"
+        ) {
+          dispatchInsertMediaAttachment(mediaAttachment.uri);
+        }
       },
       undo: () => {
         /* Native toolbar handles this */
@@ -157,11 +199,11 @@ const RichTextEditor = forwardRef<
         /* Native toolbar handles this */
       },
     }),
-    [dispatchAndroidCommand],
+    [dispatchInsertMediaAttachment],
   );
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleContentChange = useCallback(
+  const handleContentChange = React.useCallback(
     (event: any) => {
       // Parse blocksJson string (codegen doesn't support nested ReadonlyArray<Object>)
       let blocks: Block[] = [];
@@ -190,7 +232,7 @@ const RichTextEditor = forwardRef<
   );
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleSelectionChange = useCallback(
+  const handleSelectionChange = React.useCallback(
     (event: any) => {
       const selectionEvent: SelectionChangeEvent = {
         nativeEvent: {
@@ -203,15 +245,15 @@ const RichTextEditor = forwardRef<
     [props.onSelectionChange],
   );
 
-  const handleFocus = useCallback(() => {
+  const handleFocus = React.useCallback(() => {
     props.onFocus?.();
   }, [props.onFocus]);
 
-  const handleBlur = useCallback(() => {
+  const handleBlur = React.useCallback(() => {
     props.onBlur?.();
   }, [props.onBlur]);
 
-  const handleActiveStylesChange = useCallback(
+  const handleActiveStylesChange = React.useCallback(
     (event: ActiveStylesChangeEvent) => {
       props.onActiveStylesChange?.(event.nativeEvent);
     },
