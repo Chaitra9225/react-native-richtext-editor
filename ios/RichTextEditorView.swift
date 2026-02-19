@@ -1,5 +1,6 @@
 import UIKit
 import React
+import PhotosUI
 
 class FloatingToolbar: UIView, UIScrollViewDelegate {
     weak var editorView: RichTextEditorView?
@@ -12,6 +13,7 @@ class FloatingToolbar: UIView, UIScrollViewDelegate {
     private var enabledOptions: [String] = [
         "bold", "italic", "underline", "strikethrough", "code", "highlight",
         "heading", "bullet", "numbered", "quote", "checklist",
+        "mediaAttachment",
         "link", "undo", "redo", "clearFormatting",
         "indent", "outdent",
         "alignLeft", "alignCenter", "alignRight"
@@ -20,9 +22,10 @@ class FloatingToolbar: UIView, UIScrollViewDelegate {
     private let optionToIndex: [String: Int] = [
         "bold": 0, "italic": 1, "strikethrough": 2, "underline": 3, "code": 4, "highlight": 5,
         "heading": 6, "bullet": 7, "numbered": 8, "quote": 9, "checklist": 10,
-        "link": 11, "undo": 12, "redo": 13, "clearFormatting": 14,
-        "indent": 15, "outdent": 16,
-        "alignLeft": 17, "alignCenter": 18, "alignRight": 19
+        "mediaAttachment": 11,
+        "link": 12, "undo": 13, "redo": 14, "clearFormatting": 15,
+        "indent": 16, "outdent": 17,
+        "alignLeft": 18, "alignCenter": 19, "alignRight": 20
     ]
 
     private let toolbarBackgroundColor = UIColor(red: 45/255, green: 45/255, blue: 45/255, alpha: 1.0)
@@ -47,6 +50,7 @@ class FloatingToolbar: UIView, UIScrollViewDelegate {
             enabledOptions = [
                 "bold", "italic", "underline", "strikethrough", "code", "highlight",
                 "heading", "bullet", "numbered", "quote", "checklist",
+                "mediaAttachment",
                 "link", "undo", "redo", "clearFormatting",
                 "indent", "outdent",
                 "alignLeft", "alignCenter", "alignRight"
@@ -371,15 +375,16 @@ class FloatingToolbar: UIView, UIScrollViewDelegate {
         case 8: editorView?.toggleNumberedList()
         case 9: editorView?.setQuote()
         case 10: editorView?.setChecklist()
-        case 11: editorView?.promptInsertLink()
-        case 12: editorView?.undo()
-        case 13: editorView?.redo()
-        case 14: editorView?.clearFormatting()
-        case 15: editorView?.indent()
-        case 16: editorView?.outdent()
-        case 17: editorView?.setAlignment(.left)
-        case 18: editorView?.setAlignment(.center)
-        case 19: editorView?.setAlignment(.right)
+        case 11: editorView?.openImagePicker()
+        case 12: editorView?.promptInsertLink()
+        case 13: editorView?.undo()
+        case 14: editorView?.redo()
+        case 15: editorView?.clearFormatting()
+        case 16: editorView?.indent()
+        case 17: editorView?.outdent()
+        case 18: editorView?.setAlignment(.left)
+        case 19: editorView?.setAlignment(.center)
+        case 20: editorView?.setAlignment(.right)
         default: break
         }
         editorView?.updateToolbarButtonStates()
@@ -388,18 +393,20 @@ class FloatingToolbar: UIView, UIScrollViewDelegate {
     private let indexToOption: [Int: String] = [
         0: "bold", 1: "italic", 2: "strikethrough", 3: "underline", 4: "code", 5: "highlight",
         6: "heading", 7: "bullet", 8: "numbered", 9: "quote", 10: "checklist",
-        11: "link", 12: "undo", 13: "redo", 14: "clearFormatting",
-        15: "indent", 16: "outdent",
-        17: "alignLeft", 18: "alignCenter", 19: "alignRight"
+        11: "mediaAttachment",
+        12: "link", 13: "undo", 14: "redo", 15: "clearFormatting",
+        16: "indent", 17: "outdent",
+        18: "alignLeft", 19: "alignCenter", 20: "alignRight"
     ]
 
     func updateButtonStates(bold: Bool, italic: Bool, underline: Bool, strikethrough: Bool, code: Bool = false, highlight: Bool = false, heading: Bool = false, bullet: Bool, numbered: Bool, quote: Bool = false, checklist: Bool = false, alignLeft: Bool = true, alignCenter: Bool = false, alignRight: Bool = false) {
         let styleStates: [Int: Bool] = [
             0: bold, 1: italic, 2: strikethrough, 3: underline, 4: code, 5: highlight,
             6: heading, 7: bullet, 8: numbered, 9: quote, 10: checklist,
-            11: false, 12: false, 13: false, 14: false,
-            15: false, 16: false,
-            17: alignLeft, 18: alignCenter, 19: alignRight
+            11: false,
+            12: false, 13: false, 14: false, 15: false,
+            16: false, 17: false,
+            18: alignLeft, 19: alignCenter, 20: alignRight
         ]
 
         for button in buttons {
@@ -419,6 +426,9 @@ class FloatingToolbar: UIView, UIScrollViewDelegate {
 }
 
 class RichTextView: UITextView {
+    var onPasteImage: ((UIImage) -> Bool)?
+    var onPasteImageURL: ((URL) -> Bool)?
+
     override init(frame: CGRect, textContainer: NSTextContainer?) {
         super.init(frame: frame, textContainer: textContainer)
         disableAutofill()
@@ -457,13 +467,35 @@ class RichTextView: UITextView {
     }
 
     override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+        if action == #selector(paste(_:)) {
+            return true
+        }
         return false
+    }
+
+    override func paste(_ sender: Any?) {
+        let pasteboard = UIPasteboard.general
+
+        if let image = pasteboard.image,
+           onPasteImage?(image) == true {
+            return
+        }
+
+        if let url = pasteboard.url {
+            if onPasteImageURL?(url) == true {
+                return
+            }
+        }
+
+        super.paste(sender)
     }
 }
 
 @objcMembers
-class RichTextEditorView: UIView, UITextViewDelegate {
+class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDelegate, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
     private static let defaultLineHeightMultiple: CGFloat = 1.3
+    private static let mediaPlaceholderCharacter: Character = "\u{FFFC}"
+    private static let mediaAttachmentAttributeKey = NSAttributedString.Key("richTextMediaAttachment")
 
     private let textView: RichTextView = {
         let tv = RichTextView()
@@ -512,6 +544,7 @@ class RichTextEditorView: UIView, UITextViewDelegate {
     private var isInternalChange = false
     private var currentKeyboardHeight: CGFloat = 0
     private var savedSelectionRange: NSRange = NSRange(location: 0, length: 0)
+    private var isPresentingMediaPicker = false
 
     @objc var placeholder: String = "" {
         didSet { placeholderLabel.text = placeholder }
@@ -632,6 +665,19 @@ class RichTextEditorView: UIView, UITextViewDelegate {
 
         textView.delegate = self
         textView.isScrollEnabled = false
+        textView.onPasteImage = { [weak self] image in
+            guard let self = self else { return false }
+            self.insertPickedImage(image)
+            return true
+        }
+        textView.onPasteImageURL = { [weak self] url in
+            guard let self = self else { return false }
+            if self.isImageURL(url) {
+                self.insertMediaAttachment(uri: url.absoluteString)
+                return true
+            }
+            return false
+        }
 
         NotificationCenter.default.addObserver(self, selector: #selector(textDidChange), name: UITextView.textDidChangeNotification, object: textView)
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillShow(_:)), name: UIResponder.keyboardWillShowNotification, object: nil)
@@ -1856,6 +1902,254 @@ class RichTextEditorView: UIView, UITextViewDelegate {
         viewController.present(alert, animated: true)
     }
 
+    func openImagePicker() {
+        guard !isPresentingMediaPicker else { return }
+        guard let presenter = topViewController() else { return }
+
+        isPresentingMediaPicker = true
+
+        if #available(iOS 14.0, *) {
+            var config = PHPickerConfiguration(photoLibrary: .shared())
+            config.selectionLimit = 1
+            config.filter = .images
+
+            let picker = PHPickerViewController(configuration: config)
+            picker.delegate = self
+            presenter.present(picker, animated: true)
+            return
+        }
+
+        guard UIImagePickerController.isSourceTypeAvailable(.photoLibrary) else {
+            isPresentingMediaPicker = false
+            return
+        }
+
+        let picker = UIImagePickerController()
+        picker.sourceType = .photoLibrary
+        picker.mediaTypes = ["public.image"]
+        picker.delegate = self
+        presenter.present(picker, animated: true)
+    }
+
+    @available(iOS 14.0, *)
+    func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+        picker.dismiss(animated: true) { [weak self] in
+            guard let self = self else { return }
+            defer { self.isPresentingMediaPicker = false }
+
+            guard let result = results.first else { return }
+            let provider = result.itemProvider
+            guard provider.canLoadObject(ofClass: UIImage.self) else { return }
+
+            provider.loadObject(ofClass: UIImage.self) { [weak self] object, _ in
+                guard let self = self, let image = object as? UIImage else { return }
+                DispatchQueue.main.async {
+                    self.insertPickedImage(image)
+                }
+            }
+        }
+    }
+
+    func imagePickerControllerDidCancel(_ picker: UIImagePickerController) {
+        picker.dismiss(animated: true) { [weak self] in
+            self?.isPresentingMediaPicker = false
+        }
+    }
+
+    func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
+        picker.dismiss(animated: true) { [weak self] in
+            guard let self = self else { return }
+            defer { self.isPresentingMediaPicker = false }
+
+            guard let image = info[.originalImage] as? UIImage else { return }
+            self.insertPickedImage(image)
+        }
+    }
+
+    private func topViewController() -> UIViewController? {
+        guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let root = windowScene.windows.first(where: { $0.isKeyWindow })?.rootViewController ?? windowScene.windows.first?.rootViewController else {
+            return nil
+        }
+
+        var current = root
+        while let presented = current.presentedViewController {
+            current = presented
+        }
+        return current
+    }
+
+    private func insertPickedImage(_ image: UIImage) {
+        guard let imageUrl = writeImageToTemporaryURL(image) else { return }
+        insertMediaAttachmentBlock(uri: imageUrl.absoluteString, image: image)
+    }
+
+    private func writeImageToTemporaryURL(_ image: UIImage) -> URL? {
+        guard let data = image.jpegData(compressionQuality: 0.9) else { return nil }
+        let fileName = "richtext-\(UUID().uuidString).jpg"
+        let fileUrl = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+
+        do {
+            try data.write(to: fileUrl, options: .atomic)
+            return fileUrl
+        } catch {
+            return nil
+        }
+    }
+
+    private func insertMediaAttachmentBlock(uri: String, image: UIImage?) {
+        let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
+        var insertPos = textView.selectedRange.location
+        insertPos = max(0, min(insertPos, mutable.length))
+
+        let defaultAttrs: [NSAttributedString.Key: Any] = textView.typingAttributes
+
+        if insertPos > 0 {
+            let prevChar = (mutable.string as NSString).character(at: insertPos - 1)
+            if prevChar != 10 {
+                mutable.insert(NSAttributedString(string: "\n", attributes: defaultAttrs), at: insertPos)
+                insertPos += 1
+            }
+        }
+
+        let attachmentString = createMediaAttachmentAttributedString(uri: uri, image: image, width: nil, height: nil, alt: "Selected image")
+        mutable.insert(attachmentString, at: insertPos)
+
+        var nextPos = insertPos + attachmentString.length
+        let hasFollowingText = nextPos < mutable.length
+        if hasFollowingText {
+            let nextChar = (mutable.string as NSString).character(at: nextPos)
+            if nextChar != 10 {
+                mutable.insert(NSAttributedString(string: "\n", attributes: defaultAttrs), at: nextPos)
+                nextPos += 1
+            }
+        }
+
+        isInternalChange = true
+        textView.attributedText = mutable
+        textView.selectedRange = NSRange(location: min(nextPos, mutable.length), length: 0)
+        placeholderLabel.isHidden = !textView.text.isEmpty
+        isInternalChange = false
+
+        sendContentChange()
+        saveToUndoStack()
+        updateContentSize()
+    }
+
+    private func createMediaAttachmentAttributedString(uri: String, image: UIImage?, width: CGFloat?, height: CGFloat?, alt: String) -> NSAttributedString {
+        let textContainerWidth = max(
+            120,
+            textView.bounds.width - textView.textContainerInset.left - textView.textContainerInset.right - textView.textContainer.lineFragmentPadding * 2
+        )
+
+        let fallbackWidth = width ?? textContainerWidth
+        let normalizedWidth = max(1, min(textContainerWidth, fallbackWidth))
+
+        let sourceImage = image ?? loadImageFromUri(uri)
+        let normalizedHeight: CGFloat
+        if let sourceImage = sourceImage, sourceImage.size.width > 0 {
+            normalizedHeight = max(1, normalizedWidth * (sourceImage.size.height / sourceImage.size.width))
+        } else {
+            normalizedHeight = max(1, height ?? normalizedWidth)
+        }
+
+        let targetSize = CGSize(width: normalizedWidth, height: normalizedHeight)
+        let attachment = NSTextAttachment()
+        attachment.bounds = CGRect(origin: .zero, size: targetSize)
+        attachment.image = renderMediaImage(sourceImage, targetSize: targetSize)
+
+        let attributed = NSMutableAttributedString(attachment: attachment)
+        attributed.addAttribute(
+            RichTextEditorView.mediaAttachmentAttributeKey,
+            value: [
+                "kind": "image",
+                "uri": uri,
+                "width": Int(normalizedWidth.rounded()),
+                "height": Int(normalizedHeight.rounded()),
+                "alt": alt
+            ],
+            range: NSRange(location: 0, length: attributed.length)
+        )
+
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.alignment = .left
+        paragraphStyle.lineHeightMultiple = RichTextEditorView.defaultLineHeightMultiple
+        attributed.addAttribute(.paragraphStyle, value: paragraphStyle, range: NSRange(location: 0, length: attributed.length))
+
+        return attributed
+    }
+
+    private func renderMediaImage(_ image: UIImage?, targetSize: CGSize) -> UIImage {
+        guard let image = image else {
+            let renderer = UIGraphicsImageRenderer(size: targetSize)
+            return renderer.image { context in
+                UIColor.systemGray5.setFill()
+                context.fill(CGRect(origin: .zero, size: targetSize))
+                let iconSize = min(targetSize.width, targetSize.height) * 0.35
+                let iconRect = CGRect(
+                    x: (targetSize.width - iconSize) / 2,
+                    y: (targetSize.height - iconSize) / 2,
+                    width: iconSize,
+                    height: iconSize
+                )
+                if let symbol = UIImage(systemName: "photo")?.withTintColor(.systemGray2, renderingMode: .alwaysOriginal) {
+                    symbol.draw(in: iconRect)
+                }
+            }
+        }
+
+        let renderer = UIGraphicsImageRenderer(size: targetSize)
+        return renderer.image { _ in
+            image.draw(in: CGRect(origin: .zero, size: targetSize))
+        }
+    }
+
+    private func loadImageFromUri(_ uri: String) -> UIImage? {
+        guard !uri.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              let url = URL(string: uri) else {
+            return nil
+        }
+
+        if url.isFileURL {
+            return UIImage(contentsOfFile: url.path)
+        }
+
+        guard let data = try? Data(contentsOf: url) else { return nil }
+        return UIImage(data: data)
+    }
+
+    private func isImageURL(_ url: URL) -> Bool {
+        let lowercasedPath = url.path.lowercased()
+        return lowercasedPath.hasSuffix(".png") ||
+            lowercasedPath.hasSuffix(".jpg") ||
+            lowercasedPath.hasSuffix(".jpeg") ||
+            lowercasedPath.hasSuffix(".webp") ||
+            lowercasedPath.hasSuffix(".gif") ||
+            lowercasedPath.hasSuffix(".bmp") ||
+            lowercasedPath.hasSuffix(".heic") ||
+            lowercasedPath.hasSuffix(".heif")
+    }
+
+    private func extractMediaAttachment(from attributedText: NSAttributedString, in lineRange: NSRange) -> [String: Any]? {
+        guard lineRange.location < attributedText.length else { return nil }
+        let safeLength = min(lineRange.length, attributedText.length - lineRange.location)
+        guard safeLength > 0 else { return nil }
+
+        var mediaData: [String: Any]?
+        attributedText.enumerateAttribute(
+            RichTextEditorView.mediaAttachmentAttributeKey,
+            in: NSRange(location: lineRange.location, length: safeLength),
+            options: []
+        ) { value, _, stop in
+            if let data = value as? [String: Any] {
+                mediaData = data
+                stop.pointee = true
+            }
+        }
+
+        return mediaData
+    }
+
     private func toggleStyle(key: NSAttributedString.Key, trait: UIFontDescriptor.SymbolicTraits) {
         let range = textView.selectedRange
         guard range.length > 0 else { return }
@@ -2010,8 +2304,29 @@ class RichTextEditorView: UIView, UITextViewDelegate {
 
         var numberedIndex = 1
         for (blockIndex, block) in blocks.enumerated() {
-            guard let text = block["text"] as? String else { continue }
             let blockType = block["type"] as? String ?? "paragraph"
+
+            if blockType == "mediaAttachment",
+               let mediaAttachment = block["mediaAttachment"] as? [String: Any],
+               let uri = mediaAttachment["uri"] as? String {
+                let width = (mediaAttachment["width"] as? NSNumber).map { CGFloat(truncating: $0) }
+                let height = (mediaAttachment["height"] as? NSNumber).map { CGFloat(truncating: $0) }
+                let alt = mediaAttachment["alt"] as? String ?? "Selected image"
+
+                attributedString.append(createMediaAttachmentAttributedString(uri: uri, image: nil, width: width, height: height, alt: alt))
+
+                if blockIndex < blocks.count - 1 {
+                    attributedString.append(NSAttributedString(string: "\n", attributes: [
+                        .font: font,
+                        .foregroundColor: UIColor.label
+                    ]))
+                }
+
+                numberedIndex = 1
+                continue
+            }
+
+            guard let text = block["text"] as? String else { continue }
 
             var displayText = text
             var prefixLength = 0
@@ -2113,6 +2428,20 @@ class RichTextEditorView: UIView, UITextViewDelegate {
         let regex = try? NSRegularExpression(pattern: numberedPattern, options: [])
 
         for line in lines {
+            let lineRange = NSRange(location: currentIndex, length: line.count)
+            let mediaLineText = line.replacingOccurrences(of: String(RichTextEditorView.mediaPlaceholderCharacter), with: "")
+            if mediaLineText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+               let mediaAttachment = extractMediaAttachment(from: attributedText, in: lineRange) {
+                blocks.append([
+                    "type": "mediaAttachment",
+                    "text": "",
+                    "styles": [],
+                    "mediaAttachment": mediaAttachment
+                ])
+                currentIndex += line.count + 1
+                continue
+            }
+
             var blockType = "paragraph"
             var displayText = line
 
@@ -2203,6 +2532,13 @@ class RichTextEditorView: UIView, UITextViewDelegate {
         isInternalChange = false
         saveToUndoStack()
         sendContentChange()
+    }
+
+    func insertMediaAttachment(uri: String) {
+        let safeUri = uri.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !safeUri.isEmpty else { return }
+        let image = loadImageFromUri(safeUri)
+        insertMediaAttachmentBlock(uri: safeUri, image: image)
     }
 
     func undo() {
