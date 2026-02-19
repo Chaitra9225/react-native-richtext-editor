@@ -20,12 +20,13 @@ Unlike other rich text editor packages that rely on HTML and WebView, this libra
 - Bullet lists and Numbered lists
 - Headings
 - Quotes and Checklists
+- Media attachments (images)
 - Link insertion
 - Undo/Redo
 - Text alignment (left, center, right)
 - Indent/Outdent
 - Floating toolbar with customizable options
-- Two variants: outlined and flat
+- Three variants: outlined, flat, and plain
 - Auto-growing height
 - **`numberOfLines` support** — truncate text with ellipsis in readOnly mode
 - **Delta-based content updates** for optimized performance
@@ -143,7 +144,7 @@ export default App;
 | `maxHeight`         | `number`                                | `undefined`  | Maximum height before scrolling              |
 | `showToolbar`       | `boolean`                               | `true`       | Show/hide floating toolbar                   |
 | `toolbarOptions`    | `ToolbarOption[]`                       | All options  | Customize toolbar buttons                    |
-| `variant`           | `'outlined' \| 'flat'`                  | `'outlined'` | Editor style variant                         |
+| `variant`           | `'outlined' \| 'flat' \| 'plain'`       | `'outlined'` | Editor style variant                         |
 | `onContentChange`   | `(event: ContentChangeEvent) => void`   | `undefined`  | Called when content changes                  |
 | `onSelectionChange` | `(event: SelectionChangeEvent) => void` | `undefined`  | Called when selection changes                |
 | `onFocus`           | `() => void`                            | `undefined`  | Called when editor gains focus               |
@@ -180,6 +181,9 @@ editorRef.current?.setQuote();
 editorRef.current?.setChecklist();
 editorRef.current?.setParagraph();
 
+// Media
+editorRef.current?.insertMediaAttachment({ kind: 'image', uri: 'https://example.com/image.png' });
+
 // Actions
 editorRef.current?.insertLink(url, text);
 editorRef.current?.undo();
@@ -204,9 +208,18 @@ interface Block {
   alignment?: TextAlignment;
   checked?: boolean;
   indentLevel?: number;
+  mediaAttachment?: MediaAttachment;
 }
 
-type BlockType = 'paragraph' | 'bullet' | 'numbered' | 'heading' | 'quote' | 'checklist';
+interface MediaAttachment {
+  kind: 'image';
+  uri: string;
+  width?: number;
+  height?: number;
+  alt?: string;
+}
+
+type BlockType = 'paragraph' | 'bullet' | 'numbered' | 'heading' | 'quote' | 'checklist' | 'mediaAttachment';
 type TextAlignment = 'left' | 'center' | 'right';
 
 interface StyleRange {
@@ -229,6 +242,7 @@ type ToolbarOption =
   | 'numbered'
   | 'quote'
   | 'checklist'
+  | 'mediaAttachment'
   | 'link'
   | 'undo'
   | 'redo'
@@ -250,6 +264,41 @@ Use the `numberOfLines` prop along with `readOnly` to truncate content with an e
 
 This works like React Native's `Text` component — content is truncated at the specified number of lines with a trailing ellipsis.
 
+## Media Attachments
+
+You can insert images into the editor using the `insertMediaAttachment` ref method. The toolbar also includes a `mediaAttachment` button that triggers the native media attachment flow.
+
+```tsx
+import RichTextEditor, {
+  RichTextEditorRef,
+  MediaAttachment,
+} from '@chaitrabhairappa/react-native-rich-text-editor';
+
+const editorRef = useRef<RichTextEditorRef>(null);
+
+// Insert an image programmatically
+const insertImage = () => {
+  editorRef.current?.insertMediaAttachment({
+    kind: 'image',
+    uri: 'https://example.com/photo.png',
+  });
+};
+```
+
+Media attachment blocks are included in the content output:
+
+```typescript
+{
+  type: 'mediaAttachment',
+  text: '',
+  styles: [],
+  mediaAttachment: {
+    kind: 'image',
+    uri: 'https://example.com/photo.png',
+  }
+}
+```
+
 ## Customizing Toolbar
 
 ```tsx
@@ -264,6 +313,13 @@ const toolbarOptions: ToolbarOption[] = ['bold', 'italic', 'underline', 'bullet'
 ```
 
 ## Changelog
+
+### 3.0.0
+
+- Add media attachment support — insert images into the editor (iOS & Android)
+- New `insertMediaAttachment` ref method for programmatic image insertion
+- New `mediaAttachment` toolbar option
+- New `MediaAttachment` type and `mediaAttachment` block type
 
 ### 2.1.2
 
