@@ -212,6 +212,9 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
                         handled = autoContinueListOnEnter(s)
                     }
                     if (!handled) {
+                        handled = applyInlineStyleShortcut(s)
+                    }
+                    if (!handled) {
                         isInternalChange = true
                         renumberNumberedLists()
                         isInternalChange = false
@@ -1729,6 +1732,64 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
             isInternalChange = true
             s.insert(cursorPos, "☐ ")
             setSelection(cursorPos + 2)
+            isInternalChange = false
+            return true
+        }
+
+        return false
+    }
+
+    private fun applyInlineStyleShortcut(s: Editable?): Boolean {
+        if (s == null) return false
+
+        val start = selectionStart
+        val end = selectionEnd
+        if (start != end || start <= 0 || start > s.length) return false
+
+        var lineStart = start - 1
+        while (lineStart > 0 && s[lineStart - 1] != '\n') {
+            lineStart--
+        }
+
+        val textBeforeCursor = s.subSequence(lineStart, start).toString()
+        if (textBeforeCursor.length < 3) return false
+
+        data class ShortcutPattern(
+            val regex: Regex,
+            val apply: (Editable, Int, Int) -> Unit,
+        )
+
+        val patterns = listOf(
+            ShortcutPattern(Regex("(^|\\s)\\*([^*\\n]+)\\*$")) { editable, spanStart, spanEnd ->
+                editable.setSpan(StyleSpan(Typeface.BOLD), spanStart, spanEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            },
+            ShortcutPattern(Regex("(^|\\s)_([^_\\n]+)_$")) { editable, spanStart, spanEnd ->
+                editable.setSpan(StyleSpan(Typeface.ITALIC), spanStart, spanEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            },
+            ShortcutPattern(Regex("(^|\\s)~([^~\\n]+)~$")) { editable, spanStart, spanEnd ->
+                editable.setSpan(StrikethroughSpan(), spanStart, spanEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+        )
+
+        for (pattern in patterns) {
+            val match = pattern.regex.find(textBeforeCursor) ?: continue
+            val prefixWhitespaceLen = match.groupValues[1].length
+            val styledText = match.groupValues[2]
+            if (styledText.isEmpty()) continue
+
+            val markerStartInLine = match.range.first + prefixWhitespaceLen
+            val markerStart = lineStart + markerStartInLine
+            if (markerStart < 0 || markerStart > start) continue
+
+            isInternalChange = true
+            s.replace(markerStart, start, styledText)
+
+            val styleStart = markerStart
+            val styleEnd = markerStart + styledText.length
+            if (styleStart < styleEnd && styleEnd <= s.length) {
+                pattern.apply(s, styleStart, styleEnd)
+                setSelection(styleEnd)
+            }
             isInternalChange = false
             return true
         }
