@@ -106,6 +106,24 @@ class RichTextEditorViewManager : SimpleViewManager<RichTextEditorView>() {
         }
     }
 
+    @ReactProp(name = "fontFamily")
+    fun setFontFamily(view: RichTextEditorView, fontFamily: String?) {
+        try {
+            view.setFontFamily(fontFamily)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    @ReactProp(name = "fontSize", defaultFloat = 16f)
+    fun setFontSize(view: RichTextEditorView, fontSize: Float) {
+        try {
+            view.setFontSizeValue(fontSize)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     @ReactProp(name = "variant")
     fun setVariant(view: RichTextEditorView, variant: String?) {
         try {

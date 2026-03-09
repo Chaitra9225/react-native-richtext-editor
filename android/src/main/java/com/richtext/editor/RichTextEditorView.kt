@@ -55,6 +55,9 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
     private var numberOfLinesValue: Int = 0
     private var showToolbar: Boolean = true
     private var variant: String = "outlined"
+    private var customFontFamily: String? = null
+    private var customFontSize: Float = 16f
+    private var customTypeface: Typeface? = null
     private var density: Float = 1f
     private var isInternalChange = false
     private var lastReportedHeight: Float = 0f
@@ -150,8 +153,8 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         // Disable vertical scrolling by default
         isVerticalScrollBarEnabled = false
 
-        // Set white background by default
-        setBackgroundColor(Color.WHITE)
+        // Transparent background so it inherits parent's background
+        setBackgroundColor(Color.TRANSPARENT)
 
         // Default outlined style
         applyVariantStyle()
@@ -875,16 +878,16 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
     private fun applyVariantStyle() {
         if (variant == "flat") {
             background = null
-            setBackgroundColor(Color.WHITE)
+            setBackgroundColor(Color.TRANSPARENT)
             drawBottomBorder = true
         } else if (variant == "plain") {
             background = null
-            setBackgroundColor(Color.WHITE)
+            setBackgroundColor(Color.TRANSPARENT)
             drawBottomBorder = false
         } else {
             drawBottomBorder = false
             val bg = GradientDrawable().apply {
-                setColor(Color.WHITE)
+                setColor(Color.TRANSPARENT)
                 cornerRadius = 8 * density
                 setStroke((1 * density).toInt(), Color.parseColor("#E0E0E0"))
             }
@@ -959,6 +962,36 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
     fun setPlaceholderText(value: String) {
         placeholder = value
         hint = value
+    }
+
+    fun setFontFamily(value: String?) {
+        customFontFamily = value
+        customTypeface = if (value != null) {
+            try {
+                val assetPath = "fonts/$value.ttf"
+                Typeface.createFromAsset(context.assets, assetPath)
+            } catch (_: Exception) {
+                try {
+                    val assetPath = "fonts/$value.otf"
+                    Typeface.createFromAsset(context.assets, assetPath)
+                } catch (_: Exception) {
+                    Typeface.create(value, Typeface.NORMAL)
+                }
+            }
+        } else {
+            null
+        }
+        applyFont()
+    }
+
+    fun setFontSizeValue(value: Float) {
+        customFontSize = if (value > 0) value else 16f
+        applyFont()
+    }
+
+    private fun applyFont() {
+        textSize = customFontSize
+        typeface = customTypeface
     }
 
     fun setVariant(value: String) {

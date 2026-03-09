@@ -133,7 +133,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   editor: {
-    backgroundColor: '#fff',
     borderRadius: 8,
     minHeight: 100,
   },

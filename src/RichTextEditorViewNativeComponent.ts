@@ -55,6 +55,8 @@ export interface NativeProps extends ViewProps {
   showToolbar?: boolean;
   toolbarOptions?: ReadonlyArray<string>;
   variant?: string;
+  fontFamily?: string;
+  fontSize?: Double;
   initialContentJson?: string;
 
   onContentChange?: DirectEventHandler<ContentChangeEventData>;
