@@ -597,6 +597,54 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
         }
     }
 
+    @objc var fontFamily: String? = nil {
+        didSet {
+            applyCustomFont()
+        }
+    }
+
+    @objc var fontSize: CGFloat = 0 {
+        didSet {
+            if fontSize > 0 {
+                applyCustomFont()
+            }
+        }
+    }
+
+    private var effectiveFontSize: CGFloat {
+        return fontSize > 0 ? fontSize : 16
+    }
+
+    private func resolvedFont(size: CGFloat? = nil, bold: Bool = false, italic: Bool = false) -> UIFont {
+        let pointSize = size ?? effectiveFontSize
+        if let family = fontFamily, let font = UIFont(name: family, size: pointSize) {
+            var descriptor = font.fontDescriptor
+            var traits: UIFontDescriptor.SymbolicTraits = []
+            if bold { traits.insert(.traitBold) }
+            if italic { traits.insert(.traitItalic) }
+            if !traits.isEmpty, let newDescriptor = descriptor.withSymbolicTraits(traits) {
+                return UIFont(descriptor: newDescriptor, size: pointSize)
+            }
+            return font
+        }
+        if bold && italic {
+            var traits: UIFontDescriptor.SymbolicTraits = [.traitBold, .traitItalic]
+            if let descriptor = UIFont.systemFont(ofSize: pointSize).fontDescriptor.withSymbolicTraits(traits) {
+                return UIFont(descriptor: descriptor, size: pointSize)
+            }
+        }
+        if bold { return UIFont.boldSystemFont(ofSize: pointSize) }
+        if italic { return UIFont.italicSystemFont(ofSize: pointSize) }
+        return UIFont.systemFont(ofSize: pointSize)
+    }
+
+    private func applyCustomFont() {
+        let font = resolvedFont()
+        textView.font = font
+        textView.typingAttributes[.font] = font
+        placeholderLabel.font = font
+    }
+
     @objc var onContentChange: RCTDirectEventBlock?
     @objc var onSelectionChange: RCTDirectEventBlock?
     @objc var onEditorFocus: RCTDirectEventBlock?
@@ -1004,7 +1052,7 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
             }
             isInternalChange = true
             let plainAttributes: [NSAttributedString.Key: Any] = [
-                .font: UIFont.systemFont(ofSize: 16),
+                .font: resolvedFont(),
                 .foregroundColor: UIColor.label
             ]
             textView.typingAttributes = plainAttributes
@@ -1040,7 +1088,7 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
             let nextNumber = currentNumber + 1
             isInternalChange = true
             let plainAttributes: [NSAttributedString.Key: Any] = [
-                .font: UIFont.systemFont(ofSize: 16),
+                .font: resolvedFont(),
                 .foregroundColor: UIColor.label
             ]
             textView.typingAttributes = plainAttributes
@@ -1069,7 +1117,7 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
             }
             isInternalChange = true
             let plainAttributes: [NSAttributedString.Key: Any] = [
-                .font: UIFont.systemFont(ofSize: 16),
+                .font: resolvedFont(),
                 .foregroundColor: UIColor.label
             ]
             textView.typingAttributes = plainAttributes
@@ -1392,7 +1440,7 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
         let mutableAttrString = NSMutableAttributedString(attributedString: textView.attributedText)
         let nsText = text as NSString
 
-        let font = UIFont.systemFont(ofSize: 16)
+        let font = resolvedFont()
         let bulletPrefix = "• "
         let bulletWidth = (bulletPrefix as NSString).size(withAttributes: [.font: font]).width
 
@@ -1490,7 +1538,7 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
         }
 
         let monoFont = UIFont.monospacedSystemFont(ofSize: 15, weight: .regular)
-        let regularFont = UIFont.systemFont(ofSize: 16)
+        let regularFont = resolvedFont()
 
         mutableAttrString.enumerateAttribute(.font, in: range, options: []) { value, attrRange, _ in
             let newFont = hasMonospace ? regularFont : monoFont
@@ -1570,8 +1618,8 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
             }
         }
 
-        let headingFont = UIFont.boldSystemFont(ofSize: 24)
-        let regularFont = UIFont.systemFont(ofSize: 16)
+        let headingFont = resolvedFont(size: effectiveFontSize * 1.5, bold: true)
+        let regularFont = resolvedFont()
 
         mutableAttrString.addAttribute(.font, value: isHeading ? regularFont : headingFont, range: lineRange)
 
@@ -1730,7 +1778,7 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
 
         let mutableAttrString = NSMutableAttributedString(attributedString: textView.attributedText)
         let plainAttributes: [NSAttributedString.Key: Any] = [
-            .font: UIFont.systemFont(ofSize: 16),
+            .font: resolvedFont(),
             .foregroundColor: UIColor.label
         ]
 
@@ -1756,7 +1804,7 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
         let plainText = (textView.text as NSString?)?.substring(with: range) ?? ""
 
         let plainAttributes: [NSAttributedString.Key: Any] = [
-            .font: UIFont.systemFont(ofSize: 16),
+            .font: resolvedFont(),
             .foregroundColor: UIColor.label
         ]
 
@@ -2300,7 +2348,7 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
 
     func setContent(blocks: [[String: Any]]) {
         let attributedString = NSMutableAttributedString()
-        let font = UIFont.systemFont(ofSize: 16)
+        let font = resolvedFont()
 
         var numberedIndex = 1
         for (blockIndex, block) in blocks.enumerated() {
@@ -2373,10 +2421,10 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
 
                     switch styleType {
                     case "bold":
-                        let boldFont = UIFont.boldSystemFont(ofSize: font.pointSize)
+                        let boldFont = resolvedFont(size: font.pointSize, bold: true)
                         blockAttrString.addAttribute(.font, value: boldFont, range: range)
                     case "italic":
-                        let italicFont = UIFont.italicSystemFont(ofSize: font.pointSize)
+                        let italicFont = resolvedFont(size: font.pointSize, italic: true)
                         blockAttrString.addAttribute(.font, value: italicFont, range: range)
                     case "underline":
                         blockAttrString.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: range)

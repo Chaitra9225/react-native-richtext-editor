@@ -127,6 +127,8 @@ export interface RichTextEditorProps {
   showToolbar?: boolean;
   toolbarOptions?: ToolbarOption[];
   variant?: EditorVariant;
+  fontFamily?: string;
+  fontSize?: number;
   onContentChange?: (event: ContentChangeEvent) => void;
   onSelectionChange?: (event: SelectionChangeEvent) => void;
   onFocus?: () => void;
