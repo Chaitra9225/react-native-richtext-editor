@@ -50,6 +50,7 @@ type ActiveStylesEventData = Readonly<{
 export interface NativeProps extends ViewProps {
   placeholder?: string;
   editable?: boolean;
+  selectable?: boolean;
   maxHeight?: Double;
   numberOfLines?: Int32;
   showToolbar?: boolean;

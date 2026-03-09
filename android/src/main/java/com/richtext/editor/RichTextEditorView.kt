@@ -1006,6 +1006,10 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         }
     }
 
+    fun setSelectableValue(value: Boolean) {
+        setTextIsSelectable(value)
+    }
+
     fun setMaxHeightValue(value: Int) {
         maxHeightValue = value
         post { updateContentSize() }
