@@ -557,6 +557,12 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
         }
     }
 
+    @objc var selectable: Bool = true {
+        didSet {
+            textView.isSelectable = selectable
+        }
+    }
+
     @objc var maxHeight: CGFloat = 0 {
         didSet {
             if maxHeight > 0 {

@@ -140,6 +140,7 @@ export default App;
 | `placeholder`       | `string`                                | `""`         | Placeholder text                             |
 | `initialContent`    | `Block[]`                               | `[]`         | Initial content blocks                       |
 | `readOnly`          | `boolean`                               | `false`      | Make editor read-only                        |
+| `selectable`        | `boolean`                               | `true`       | Enable/disable text selection                |
 | `numberOfLines`     | `number`                                | `undefined`  | Truncate text with ellipsis in readOnly mode |
 | `maxHeight`         | `number`                                | `undefined`  | Maximum height before scrolling              |
 | `showToolbar`       | `boolean`                               | `true`       | Show/hide floating toolbar                   |
@@ -313,6 +314,10 @@ const toolbarOptions: ToolbarOption[] = ['bold', 'italic', 'underline', 'bullet'
 ```
 
 ## Changelog
+
+### 3.3.0
+
+- Add `selectable` prop to enable/disable text selection (iOS & Android)
 
 ### 3.0.0
 

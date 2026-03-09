@@ -62,6 +62,15 @@ class RichTextEditorViewManager : SimpleViewManager<RichTextEditorView>() {
         }
     }
 
+    @ReactProp(name = "selectable")
+    fun setSelectable(view: RichTextEditorView, selectable: Boolean) {
+        try {
+            view.setSelectableValue(selectable)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     @ReactProp(name = "maxHeight")
     fun setMaxHeight(view: RichTextEditorView, maxHeight: Double) {
         try {

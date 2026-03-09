@@ -271,6 +271,7 @@ const RichTextEditor = React.forwardRef<
         props.initialContent ? JSON.stringify(props.initialContent) : undefined
       }
       editable={props.readOnly !== undefined ? !props.readOnly : true}
+      selectable={props.selectable ?? true}
       maxHeight={props.maxHeight}
       numberOfLines={props.numberOfLines}
       showToolbar={props.readOnly ? false : (props.showToolbar ?? true)}

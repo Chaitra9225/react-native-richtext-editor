@@ -122,6 +122,7 @@ export interface RichTextEditorProps {
   placeholder?: string;
   initialContent?: Block[];
   readOnly?: boolean;
+  selectable?: boolean;
   maxHeight?: number;
   numberOfLines?: number;
   showToolbar?: boolean;
