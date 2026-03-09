@@ -1,9 +1,11 @@
 package com.richtext.editor
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffColorFilter
+import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.GradientDrawable
 import android.view.Gravity
 import android.view.View
@@ -56,6 +58,9 @@ class FloatingToolbar(context: Context) : LinearLayout(context) {
     private val toolbarBackgroundColor = Color.parseColor("#2D2D2D")
     private val activeColor = Color.parseColor("#5082C8")
     private val inactiveColor = Color.WHITE
+
+    private val iconSize = maxOf((20 * density).toInt(), 1)
+    private val iconPadding = (8 * density).toInt()
 
     private val buttons = mutableMapOf<String, ImageView>()
     private val buttonContainer: LinearLayout
@@ -193,12 +198,8 @@ class FloatingToolbar(context: Context) : LinearLayout(context) {
         }
     }
 
-    private val iconSize = (20 * density).toInt()
-    private val iconPadding = (10 * density).toInt()
-
     private fun createButton(option: String): ImageView? {
-        val drawableResId = getDrawableResId(option)
-        if (drawableResId == 0) return null
+        val bitmap = ToolbarIcons.getIcon(option, inactiveColor, iconSize) ?: return null
 
         val button = ImageView(context).apply {
             scaleType = ImageView.ScaleType.FIT_CENTER
@@ -214,9 +215,7 @@ class FloatingToolbar(context: Context) : LinearLayout(context) {
             params.marginEnd = buttonSpacing
             layoutParams = params
 
-            // Set the icon - drawable will scale to fit within padding
-            setImageResource(drawableResId)
-            colorFilter = PorterDuffColorFilter(inactiveColor, PorterDuff.Mode.SRC_IN)
+            setImageBitmap(bitmap)
         }
 
         when (option) {
@@ -283,10 +282,11 @@ class FloatingToolbar(context: Context) : LinearLayout(context) {
 
         for ((option, button) in buttons) {
             val isActive = states[option] ?: false
-            button.colorFilter = PorterDuffColorFilter(
-                if (isActive) activeColor else inactiveColor,
-                PorterDuff.Mode.SRC_IN
-            )
+            val color = if (isActive) activeColor else inactiveColor
+            val bitmap = ToolbarIcons.getIcon(option, color, iconSize)
+            if (bitmap != null) {
+                button.setImageBitmap(bitmap)
+            }
             (button.background as? GradientDrawable)?.setColor(
                 if (isActive) Color.parseColor("#40FFFFFF") else Color.TRANSPARENT
             )
