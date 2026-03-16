@@ -1943,12 +1943,12 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         imagePickerLauncher?.launch("image/*")
     }
 
-    private fun insertMediaAttachmentBlock(uri: String) {
+    private fun insertMediaAttachmentBlock(mediaData: MediaAttachmentData) {
         val editable = text ?: return
         var insertPos = selectionStart.coerceIn(0, editable.length)
 
         isInternalChange = true
-        val nextPos = mediaAttachmentSupport.insertMediaAttachmentBlock(editable, insertPos, uri)
+        val nextPos = mediaAttachmentSupport.insertMediaAttachmentBlock(editable, insertPos, mediaData)
         setSelection(nextPos.coerceAtMost(editable.length))
 
         isInternalChange = false
@@ -1957,10 +1957,60 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         post { updateContentSize() }
     }
 
-    fun insertMediaAttachment(uri: String?) {
-        val safeUri = uri?.trim().orEmpty()
+    private fun insertMediaAttachmentBlock(uri: String) {
+        val safeUri = uri.trim()
         if (safeUri.isEmpty()) return
-        insertMediaAttachmentBlock(safeUri)
+        val mediaData = mediaAttachmentSupport.createMediaDataForUri(safeUri)
+        insertMediaAttachmentBlock(mediaData)
+    }
+
+    private fun parseMediaAttachmentPayload(payload: String): MediaAttachmentData? {
+        val trimmed = payload.trim()
+        if (trimmed.isEmpty()) return null
+
+        return try {
+            if (trimmed.startsWith("{")) {
+                val obj = org.json.JSONObject(trimmed)
+                val uri = obj.optString("uri", "").trim()
+                if (uri.isEmpty()) {
+                    null
+                } else {
+                    val sourceUri = obj.optString("sourceUri", uri).ifBlank { uri }
+                    val kind = obj.optString("kind", "image")
+                    val fileName = obj.optString("fileName", "").ifBlank { null }
+                    val extension = obj.optString("extension", "").ifBlank { null }
+                    val contentType = obj.optString("contentType", "").ifBlank { null }
+                    val fileSize = if (obj.has("fileSize")) obj.optLong("fileSize", -1L) else -1L
+                    val width = obj.optInt("width", 100).coerceAtLeast(1)
+                    val height = obj.optInt("height", 100).coerceAtLeast(1)
+                    val alt = obj.optString("alt", "Selected image")
+
+                    MediaAttachmentData(
+                        kind = kind,
+                        uri = uri,
+                        sourceUri = sourceUri,
+                        fileName = fileName,
+                        extension = extension,
+                        contentType = contentType,
+                        fileSize = fileSize.takeIf { it >= 0L },
+                        widthDp = width,
+                        heightDp = height,
+                        alt = alt
+                    )
+                }
+            } else {
+                mediaAttachmentSupport.createMediaDataForUri(trimmed)
+            }
+        } catch (_: Exception) {
+            mediaAttachmentSupport.createMediaDataForUri(trimmed)
+        }
+    }
+
+    fun insertMediaAttachment(payload: String?) {
+        val safePayload = payload?.trim().orEmpty()
+        if (safePayload.isEmpty()) return
+        val mediaData = parseMediaAttachmentPayload(safePayload) ?: return
+        insertMediaAttachmentBlock(mediaData)
     }
 
     private fun promptInsertLink() {

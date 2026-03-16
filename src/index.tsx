@@ -76,11 +76,25 @@ const RichTextEditor = React.forwardRef<
   );
 
   const dispatchInsertMediaAttachment = React.useCallback(
-    (uri: string) => {
-      if (typeof uri !== "string" || uri.trim().length === 0) return;
+    (mediaAttachment: MediaAttachment) => {
+      if (
+        !mediaAttachment ||
+        typeof mediaAttachment !== "object" ||
+        typeof mediaAttachment.uri !== "string" ||
+        mediaAttachment.uri.trim().length === 0
+      ) {
+        return;
+      }
+
+      const normalizedMediaAttachment: MediaAttachment = {
+        ...mediaAttachment,
+        sourceUri: mediaAttachment.sourceUri ?? mediaAttachment.uri,
+      };
 
       if (Platform.OS === "android") {
-        dispatchAndroidCommand("insertMediaAttachment", [uri]);
+        dispatchAndroidCommand("insertMediaAttachment", [
+          JSON.stringify(normalizedMediaAttachment),
+        ]);
         return;
       }
 
@@ -104,7 +118,10 @@ const RichTextEditor = React.forwardRef<
             manager as {
               insertMediaAttachment: (tag: number, value: string) => void;
             }
-          ).insertMediaAttachment(nativeTag, uri);
+          ).insertMediaAttachment(
+            nativeTag,
+            JSON.stringify(normalizedMediaAttachment),
+          );
         }
       }
     },
@@ -169,13 +186,7 @@ const RichTextEditor = React.forwardRef<
         /* Native toolbar handles this */
       },
       insertMediaAttachment: (mediaAttachment: MediaAttachment) => {
-        if (
-          mediaAttachment &&
-          typeof mediaAttachment === "object" &&
-          typeof mediaAttachment.uri === "string"
-        ) {
-          dispatchInsertMediaAttachment(mediaAttachment.uri);
-        }
+        dispatchInsertMediaAttachment(mediaAttachment);
       },
       undo: () => {
         /* Native toolbar handles this */
@@ -297,6 +308,7 @@ export type {
   Block,
   BlockType,
   StyleRange,
+  MediaKind,
   MediaAttachment,
   TextAlignment,
   EditorVariant,
