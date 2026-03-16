@@ -29,8 +29,8 @@ class RichTextEditorViewManager : SimpleViewManager<RichTextEditorView>() {
     override fun receiveCommand(view: RichTextEditorView, commandId: String?, args: ReadableArray?) {
         when (commandId) {
             "insertMediaAttachment" -> {
-                val uri = args?.getString(0)
-                view.insertMediaAttachment(uri)
+                val payload = args?.getString(0)
+                view.insertMediaAttachment(payload)
             }
         }
     }
@@ -38,8 +38,8 @@ class RichTextEditorViewManager : SimpleViewManager<RichTextEditorView>() {
     override fun receiveCommand(view: RichTextEditorView, commandId: Int, args: ReadableArray?) {
         when (commandId) {
             COMMAND_INSERT_MEDIA_ATTACHMENT -> {
-                val uri = args?.getString(0)
-                view.insertMediaAttachment(uri)
+                val payload = args?.getString(0)
+                view.insertMediaAttachment(payload)
             }
         }
     }
@@ -174,6 +174,22 @@ class RichTextEditorViewManager : SimpleViewManager<RichTextEditorView>() {
                     val mediaMap = mutableMapOf<String, Any>()
                     mediaMap["kind"] = mediaAttachment.optString("kind", "image")
                     mediaMap["uri"] = mediaAttachment.optString("uri", "")
+                    mediaMap["sourceUri"] = mediaAttachment.optString(
+                        "sourceUri",
+                        mediaAttachment.optString("uri", "")
+                    )
+                    if (mediaAttachment.has("fileName")) {
+                        mediaMap["fileName"] = mediaAttachment.optString("fileName", "")
+                    }
+                    if (mediaAttachment.has("extension")) {
+                        mediaMap["extension"] = mediaAttachment.optString("extension", "")
+                    }
+                    if (mediaAttachment.has("contentType")) {
+                        mediaMap["contentType"] = mediaAttachment.optString("contentType", "")
+                    }
+                    if (mediaAttachment.has("fileSize")) {
+                        mediaMap["fileSize"] = mediaAttachment.optLong("fileSize", 0)
+                    }
                     mediaMap["width"] = mediaAttachment.optInt("width", 100)
                     mediaMap["height"] = mediaAttachment.optInt("height", 100)
                     mediaMap["alt"] = mediaAttachment.optString("alt", "")

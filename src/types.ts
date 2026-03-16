@@ -25,10 +25,16 @@ export type BlockType =
   | "mediaAttachment";
 export type TextAlignment = "left" | "center" | "right";
 export type EditorVariant = "outlined" | "flat" | "plain";
+export type MediaKind = "image" | "video";
 
 export interface MediaAttachment {
-  kind: "image";
+  kind: MediaKind;
   uri: string;
+  sourceUri?: string;
+  fileName?: string;
+  extension?: string;
+  contentType?: string;
+  fileSize?: number;
   width?: number;
   height?: number;
   alt?: string;

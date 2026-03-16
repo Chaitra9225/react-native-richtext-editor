@@ -11,6 +11,11 @@ import kotlin.math.ceil
 data class MediaAttachmentData(
     val kind: String,
     val uri: String,
+    val sourceUri: String? = null,
+    val fileName: String? = null,
+    val extension: String? = null,
+    val contentType: String? = null,
+    val fileSize: Long? = null,
     val widthDp: Int,
     val heightDp: Int,
     val alt: String
