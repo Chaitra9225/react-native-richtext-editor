@@ -4,9 +4,11 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
+import android.provider.OpenableColumns
 import android.text.Editable
 import android.text.SpannableStringBuilder
 import android.text.Spanned
+import android.webkit.MimeTypeMap
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.WritableMap
 import org.json.JSONObject
@@ -32,9 +34,16 @@ class MediaAttachmentSupport(
         if (blockType != "mediaAttachment") return null
 
         val mediaInfo = block["mediaAttachment"] as? Map<*, *>
+        val uri = mediaInfo?.get("uri") as? String ?: ""
+        val sourceUri = mediaInfo?.get("sourceUri") as? String ?: uri
         return MediaAttachmentData(
             kind = mediaInfo?.get("kind") as? String ?: "image",
-            uri = mediaInfo?.get("uri") as? String ?: "",
+            uri = uri,
+            sourceUri = sourceUri,
+            fileName = mediaInfo?.get("fileName") as? String,
+            extension = mediaInfo?.get("extension") as? String,
+            contentType = mediaInfo?.get("contentType") as? String,
+            fileSize = (mediaInfo?.get("fileSize") as? Number)?.toLong(),
             widthDp = (mediaInfo?.get("width") as? Number)?.toInt() ?: 100,
             heightDp = (mediaInfo?.get("height") as? Number)?.toInt() ?: 100,
             alt = mediaInfo?.get("alt") as? String ?: ""
@@ -76,6 +85,11 @@ class MediaAttachmentSupport(
         val mediaMap = Arguments.createMap()
         mediaMap.putString("kind", mediaData.kind)
         mediaMap.putString("uri", mediaData.uri)
+        mediaMap.putString("sourceUri", mediaData.sourceUri ?: mediaData.uri)
+        mediaData.fileName?.let { mediaMap.putString("fileName", it) }
+        mediaData.extension?.let { mediaMap.putString("extension", it) }
+        mediaData.contentType?.let { mediaMap.putString("contentType", it) }
+        mediaData.fileSize?.let { mediaMap.putDouble("fileSize", it.toDouble()) }
         mediaMap.putInt("width", mediaData.widthDp)
         mediaMap.putInt("height", mediaData.heightDp)
         mediaMap.putString("alt", mediaData.alt)
@@ -93,6 +107,11 @@ class MediaAttachmentSupport(
         val mediaObj = JSONObject()
         mediaObj.put("kind", mediaData.kind)
         mediaObj.put("uri", mediaData.uri)
+        mediaObj.put("sourceUri", mediaData.sourceUri ?: mediaData.uri)
+        mediaData.fileName?.let { mediaObj.put("fileName", it) }
+        mediaData.extension?.let { mediaObj.put("extension", it) }
+        mediaData.contentType?.let { mediaObj.put("contentType", it) }
+        mediaData.fileSize?.let { mediaObj.put("fileSize", it) }
         mediaObj.put("width", mediaData.widthDp)
         mediaObj.put("height", mediaData.heightDp)
         mediaObj.put("alt", mediaData.alt)
@@ -127,14 +146,12 @@ class MediaAttachmentSupport(
     }
 
     fun insertMediaAttachmentBlock(editable: Editable, insertPos: Int, uri: String): Int {
+        val mediaData = createMediaDataForUri(uri)
+        return insertMediaAttachmentBlock(editable, insertPos, mediaData)
+    }
+
+    fun insertMediaAttachmentBlock(editable: Editable, insertPos: Int, mediaData: MediaAttachmentData): Int {
         var mutableInsertPos = insertPos.coerceIn(0, editable.length)
-        val mediaData = MediaAttachmentData(
-            kind = "image",
-            uri = uri,
-            widthDp = 100,
-            heightDp = 100,
-            alt = "Selected image"
-        )
 
         if (mutableInsertPos > 0 && editable[mutableInsertPos - 1] != '\n') {
             editable.insert(mutableInsertPos, "\n")
@@ -158,6 +175,75 @@ class MediaAttachmentSupport(
         }
 
         return nextPos.coerceAtMost(editable.length)
+    }
+
+    fun createMediaDataForUri(uri: String): MediaAttachmentData {
+        val inferredMeta = inferMediaMetadata(uri)
+        return MediaAttachmentData(
+            kind = "image",
+            uri = uri,
+            sourceUri = uri,
+            fileName = inferredMeta.fileName,
+            extension = inferredMeta.extension,
+            contentType = inferredMeta.contentType,
+            fileSize = inferredMeta.fileSize,
+            widthDp = 100,
+            heightDp = 100,
+            alt = "Selected image"
+        )
+    }
+
+    private data class InferredMediaMetadata(
+        val fileName: String?,
+        val extension: String?,
+        val contentType: String?,
+        val fileSize: Long?
+    )
+
+    private fun inferMediaMetadata(uriString: String): InferredMediaMetadata {
+        val parsed = runCatching { Uri.parse(uriString) }.getOrNull()
+            ?: return InferredMediaMetadata(null, null, null, null)
+
+        val extension = runCatching {
+            MimeTypeMap.getFileExtensionFromUrl(parsed.toString())
+        }.getOrNull()?.takeIf { it.isNotBlank() }?.lowercase()
+
+        val contentType = runCatching {
+            context.contentResolver.getType(parsed)
+        }.getOrNull() ?: extension?.let {
+            MimeTypeMap.getSingleton().getMimeTypeFromExtension(it)
+        }
+
+        var fileName: String? = null
+        var fileSize: Long? = null
+
+        if (parsed.scheme == "content") {
+            runCatching {
+                context.contentResolver.query(parsed, null, null, null, null)
+            }.getOrNull()?.use { cursor ->
+                val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
+                if (cursor.moveToFirst()) {
+                    if (nameIndex >= 0) {
+                        fileName = cursor.getString(nameIndex)
+                    }
+                    if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) {
+                        fileSize = cursor.getLong(sizeIndex)
+                    }
+                }
+            }
+        }
+
+        if (fileName.isNullOrBlank()) {
+            fileName = parsed.lastPathSegment
+        }
+
+        val resolvedExtension = extension ?: fileName
+            ?.substringAfterLast('.', "")
+            ?.takeIf { it.isNotBlank() }
+            ?.lowercase()
+
+        return InferredMediaMetadata(fileName, resolvedExtension, contentType, fileSize)
     }
 
     private fun normalizeMediaDimensions(mediaData: MediaAttachmentData, targetWidthPx: Int): MediaAttachmentData {

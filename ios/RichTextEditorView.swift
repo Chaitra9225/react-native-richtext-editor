@@ -2035,7 +2035,12 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
 
     private func insertPickedImage(_ image: UIImage) {
         guard let imageUrl = writeImageToTemporaryURL(image) else { return }
-        insertMediaAttachmentBlock(uri: imageUrl.absoluteString, image: image)
+        let mediaAttachment = createMediaAttachmentInfoFromUri(
+            imageUrl.absoluteString,
+            kind: "image",
+            alt: "Selected image"
+        )
+        insertMediaAttachmentBlock(mediaAttachment: mediaAttachment, image: image)
     }
 
     private func writeImageToTemporaryURL(_ image: UIImage) -> URL? {
@@ -2051,7 +2056,12 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
         }
     }
 
-    private func insertMediaAttachmentBlock(uri: String, image: UIImage?) {
+    private func insertMediaAttachmentBlock(mediaAttachment: [String: Any], image: UIImage?) {
+        guard let uri = mediaAttachment["uri"] as? String,
+              !uri.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return
+        }
+
         let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
         var insertPos = textView.selectedRange.location
         insertPos = max(0, min(insertPos, mutable.length))
@@ -2066,7 +2076,12 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
             }
         }
 
-        let attachmentString = createMediaAttachmentAttributedString(uri: uri, image: image, width: nil, height: nil, alt: "Selected image")
+        let attachmentString = createMediaAttachmentAttributedString(
+            mediaAttachment: mediaAttachment,
+            image: image,
+            width: nil,
+            height: nil
+        )
         mutable.insert(attachmentString, at: insertPos)
 
         var nextPos = insertPos + attachmentString.length
@@ -2090,13 +2105,30 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
         updateContentSize()
     }
 
-    private func createMediaAttachmentAttributedString(uri: String, image: UIImage?, width: CGFloat?, height: CGFloat?, alt: String) -> NSAttributedString {
+    private func insertMediaAttachmentBlock(uri: String, image: UIImage?) {
+        let safeUri = uri.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !safeUri.isEmpty else { return }
+        let mediaAttachment = createMediaAttachmentInfoFromUri(safeUri, kind: "image", alt: "Selected image")
+        insertMediaAttachmentBlock(mediaAttachment: mediaAttachment, image: image)
+    }
+
+    private func createMediaAttachmentAttributedString(mediaAttachment: [String: Any], image: UIImage?, width: CGFloat?, height: CGFloat?) -> NSAttributedString {
+        let uri = (mediaAttachment["uri"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let sourceUri = (mediaAttachment["sourceUri"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            .flatMap { $0.isEmpty ? nil : $0 } ?? uri
+        let kind = (mediaAttachment["kind"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            .flatMap { $0.isEmpty ? nil : $0 } ?? "image"
+        let alt = (mediaAttachment["alt"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            .flatMap { $0.isEmpty ? nil : $0 } ?? "Selected image"
+
+        let widthFromPayload = numberValue(mediaAttachment["width"]).map { CGFloat(truncating: $0) }
+        let heightFromPayload = numberValue(mediaAttachment["height"]).map { CGFloat(truncating: $0) }
         let textContainerWidth = max(
             120,
             textView.bounds.width - textView.textContainerInset.left - textView.textContainerInset.right - textView.textContainer.lineFragmentPadding * 2
         )
 
-        let fallbackWidth = width ?? textContainerWidth
+        let fallbackWidth = width ?? widthFromPayload ?? textContainerWidth
         let normalizedWidth = max(1, min(textContainerWidth, fallbackWidth))
 
         let sourceImage = image ?? loadImageFromUri(uri)
@@ -2104,7 +2136,7 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
         if let sourceImage = sourceImage, sourceImage.size.width > 0 {
             normalizedHeight = max(1, normalizedWidth * (sourceImage.size.height / sourceImage.size.width))
         } else {
-            normalizedHeight = max(1, height ?? normalizedWidth)
+            normalizedHeight = max(1, height ?? heightFromPayload ?? normalizedWidth)
         }
 
         let targetSize = CGSize(width: normalizedWidth, height: normalizedHeight)
@@ -2113,15 +2145,32 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
         attachment.image = renderMediaImage(sourceImage, targetSize: targetSize)
 
         let attributed = NSMutableAttributedString(attachment: attachment)
+
+        var normalizedAttachment: [String: Any] = [
+            "kind": kind,
+            "uri": uri,
+            "sourceUri": sourceUri,
+            "width": Int(normalizedWidth.rounded()),
+            "height": Int(normalizedHeight.rounded()),
+            "alt": alt
+        ]
+
+        if let fileName = (mediaAttachment["fileName"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !fileName.isEmpty {
+            normalizedAttachment["fileName"] = fileName
+        }
+        if let fileExtension = (mediaAttachment["extension"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !fileExtension.isEmpty {
+            normalizedAttachment["extension"] = fileExtension
+        }
+        if let contentType = (mediaAttachment["contentType"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !contentType.isEmpty {
+            normalizedAttachment["contentType"] = contentType
+        }
+        if let fileSize = numberValue(mediaAttachment["fileSize"]) {
+            normalizedAttachment["fileSize"] = fileSize
+        }
+
         attributed.addAttribute(
             RichTextEditorView.mediaAttachmentAttributeKey,
-            value: [
-                "kind": "image",
-                "uri": uri,
-                "width": Int(normalizedWidth.rounded()),
-                "height": Int(normalizedHeight.rounded()),
-                "alt": alt
-            ],
+            value: normalizedAttachment,
             range: NSRange(location: 0, length: attributed.length)
         )
 
@@ -2170,6 +2219,137 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
 
         guard let data = try? Data(contentsOf: url) else { return nil }
         return UIImage(data: data)
+    }
+
+    private func createMediaAttachmentInfoFromUri(_ uri: String, kind: String = "image", alt: String = "Selected image") -> [String: Any] {
+        let normalizedUri = uri.trimmingCharacters(in: .whitespacesAndNewlines)
+        var mediaAttachment: [String: Any] = [
+            "kind": kind,
+            "uri": normalizedUri,
+            "sourceUri": normalizedUri,
+            "alt": alt
+        ]
+
+        let inferred = inferMediaMetadata(from: normalizedUri)
+        if let fileName = inferred.fileName {
+            mediaAttachment["fileName"] = fileName
+        }
+        if let fileExtension = inferred.fileExtension {
+            mediaAttachment["extension"] = fileExtension
+        }
+        if let contentType = inferred.contentType {
+            mediaAttachment["contentType"] = contentType
+        }
+        if let fileSize = inferred.fileSize {
+            mediaAttachment["fileSize"] = fileSize
+        }
+
+        return mediaAttachment
+    }
+
+    private func numberValue(_ value: Any?) -> NSNumber? {
+        if let number = value as? NSNumber {
+            return number
+        }
+        if let intValue = value as? Int {
+            return NSNumber(value: intValue)
+        }
+        if let int64Value = value as? Int64 {
+            return NSNumber(value: int64Value)
+        }
+        if let doubleValue = value as? Double {
+            return NSNumber(value: doubleValue)
+        }
+        if let floatValue = value as? Float {
+            return NSNumber(value: floatValue)
+        }
+        return nil
+    }
+
+    private func parseMediaAttachmentPayload(_ payload: String) -> [String: Any]? {
+        let trimmed = payload.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        if trimmed.first == "{" {
+            guard let data = trimmed.data(using: .utf8),
+                  let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let uriValue = raw["uri"] as? String else {
+                return nil
+            }
+
+            let uri = uriValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !uri.isEmpty else { return nil }
+
+            var normalized = createMediaAttachmentInfoFromUri(uri)
+
+            if let kind = (raw["kind"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !kind.isEmpty {
+                normalized["kind"] = kind
+            }
+            if let sourceUri = (raw["sourceUri"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !sourceUri.isEmpty {
+                normalized["sourceUri"] = sourceUri
+            }
+            if let alt = (raw["alt"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !alt.isEmpty {
+                normalized["alt"] = alt
+            }
+            if let fileName = (raw["fileName"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !fileName.isEmpty {
+                normalized["fileName"] = fileName
+            }
+            if let fileExtension = (raw["extension"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !fileExtension.isEmpty {
+                normalized["extension"] = fileExtension
+            }
+            if let contentType = (raw["contentType"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !contentType.isEmpty {
+                normalized["contentType"] = contentType
+            }
+            if let fileSize = numberValue(raw["fileSize"]) {
+                normalized["fileSize"] = fileSize
+            }
+            if let width = numberValue(raw["width"]) {
+                normalized["width"] = max(1, width.intValue)
+            }
+            if let height = numberValue(raw["height"]) {
+                normalized["height"] = max(1, height.intValue)
+            }
+
+            return normalized
+        }
+
+        return createMediaAttachmentInfoFromUri(trimmed)
+    }
+
+    private func inferMediaMetadata(from uri: String) -> (fileName: String?, fileExtension: String?, contentType: String?, fileSize: NSNumber?) {
+        guard let url = URL(string: uri) else {
+            return (nil, nil, nil, nil)
+        }
+
+        let fileName = url.lastPathComponent.isEmpty ? nil : url.lastPathComponent
+        let fileExtension = url.pathExtension.isEmpty ? nil : url.pathExtension.lowercased()
+
+        var fileSize: NSNumber?
+        if url.isFileURL,
+           let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+           let size = attributes[.size] as? NSNumber {
+            fileSize = size
+        }
+
+        let contentType = fileExtension.flatMap { mimeType(forExtension: $0) }
+
+        return (fileName, fileExtension, contentType, fileSize)
+    }
+
+    private func mimeType(forExtension fileExtension: String) -> String? {
+        let lower = fileExtension.lowercased()
+        switch lower {
+        case "jpg", "jpeg": return "image/jpeg"
+        case "png": return "image/png"
+        case "gif": return "image/gif"
+        case "webp": return "image/webp"
+        case "bmp": return "image/bmp"
+        case "heic": return "image/heic"
+        case "heif": return "image/heif"
+        case "mp4": return "video/mp4"
+        case "mov": return "video/quicktime"
+        default: return nil
+        }
     }
 
     private func isImageURL(_ url: URL) -> Bool {
@@ -2365,9 +2545,38 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
                let uri = mediaAttachment["uri"] as? String {
                 let width = (mediaAttachment["width"] as? NSNumber).map { CGFloat(truncating: $0) }
                 let height = (mediaAttachment["height"] as? NSNumber).map { CGFloat(truncating: $0) }
-                let alt = mediaAttachment["alt"] as? String ?? "Selected image"
+                var normalizedMediaAttachment = createMediaAttachmentInfoFromUri(uri)
 
-                attributedString.append(createMediaAttachmentAttributedString(uri: uri, image: nil, width: width, height: height, alt: alt))
+                if let kind = mediaAttachment["kind"] as? String {
+                    normalizedMediaAttachment["kind"] = kind
+                }
+                if let sourceUri = mediaAttachment["sourceUri"] as? String, !sourceUri.isEmpty {
+                    normalizedMediaAttachment["sourceUri"] = sourceUri
+                }
+                if let alt = mediaAttachment["alt"] as? String, !alt.isEmpty {
+                    normalizedMediaAttachment["alt"] = alt
+                }
+                if let fileName = mediaAttachment["fileName"] as? String, !fileName.isEmpty {
+                    normalizedMediaAttachment["fileName"] = fileName
+                }
+                if let fileExtension = mediaAttachment["extension"] as? String, !fileExtension.isEmpty {
+                    normalizedMediaAttachment["extension"] = fileExtension
+                }
+                if let contentType = mediaAttachment["contentType"] as? String, !contentType.isEmpty {
+                    normalizedMediaAttachment["contentType"] = contentType
+                }
+                if let fileSize = numberValue(mediaAttachment["fileSize"]) {
+                    normalizedMediaAttachment["fileSize"] = fileSize
+                }
+
+                attributedString.append(
+                    createMediaAttachmentAttributedString(
+                        mediaAttachment: normalizedMediaAttachment,
+                        image: nil,
+                        width: width,
+                        height: height
+                    )
+                )
 
                 if blockIndex < blocks.count - 1 {
                     attributedString.append(NSAttributedString(string: "\n", attributes: [
@@ -2589,10 +2798,16 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
     }
 
     func insertMediaAttachment(uri: String) {
-        let safeUri = uri.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !safeUri.isEmpty else { return }
-        let image = loadImageFromUri(safeUri)
-        insertMediaAttachmentBlock(uri: safeUri, image: image)
+        let safePayload = uri.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !safePayload.isEmpty,
+              let mediaAttachment = parseMediaAttachmentPayload(safePayload),
+              let mediaUri = mediaAttachment["uri"] as? String,
+              !mediaUri.isEmpty else {
+            return
+        }
+
+        let image = loadImageFromUri(mediaUri)
+        insertMediaAttachmentBlock(mediaAttachment: mediaAttachment, image: image)
     }
 
     func undo() {
