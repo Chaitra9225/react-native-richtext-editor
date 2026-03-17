@@ -2114,11 +2114,14 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
 
     private func createMediaAttachmentAttributedString(mediaAttachment: [String: Any], image: UIImage?, width: CGFloat?, height: CGFloat?) -> NSAttributedString {
         let uri = (mediaAttachment["uri"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        let sourceUri = (mediaAttachment["sourceUri"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let sourceUri = (mediaAttachment["sourceUri"] as? String)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .flatMap { $0.isEmpty ? nil : $0 } ?? uri
-        let kind = (mediaAttachment["kind"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let kind = (mediaAttachment["kind"] as? String)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .flatMap { $0.isEmpty ? nil : $0 } ?? "image"
-        let alt = (mediaAttachment["alt"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let alt = (mediaAttachment["alt"] as? String)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .flatMap { $0.isEmpty ? nil : $0 } ?? "Selected image"
 
         let widthFromPayload = numberValue(mediaAttachment["width"]).map { CGFloat(truncating: $0) }
