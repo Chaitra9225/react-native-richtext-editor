@@ -5,7 +5,11 @@ import {
   Text,
   View,
   Button,
+  ActivityIndicator,
+  TouchableOpacity,
+  KeyboardAvoidingView,
   ScrollView,
+  Platform,
 } from 'react-native';
 import RichTextEditor, {
   RichTextEditorRef,
@@ -13,150 +17,230 @@ import RichTextEditor, {
   ContentChangeEvent,
 } from '@chaitrabhairappa/react-native-rich-text-editor';
 
+const sampleContent: Block[] = [
+  {
+    type: 'paragraph',
+    text: 'This is a rich text editor demo with multiple lines of content.',
+    styles: [{ style: 'bold', start: 0, end: 4 }],
+  },
+  {
+    type: 'numbered',
+    text: 'First bullet item with bold text',
+    styles: [{ style: 'bold', start: 23, end: 32 }],
+  },
+  {
+    type: 'bullet',
+    text: 'Second bullet item with italic',
+    styles: [{ style: 'italic', start: 24, end: 30 }],
+  },
+  {
+    type: 'numbered',
+    text: 'First numbered item',
+    styles: [{ style: 'underline', start: 0, end: 5 }],
+  },
+  {
+    type: 'paragraph',
+    text: 'This second paragraph adds more content to demonstrate the resize behavior when switching between view and edit modes.',
+    styles: [{ style: 'italic', start: 5, end: 11 }],
+  },
+  {
+    type: 'paragraph',
+    text: 'Another paragraph to make the content taller so the flicker is more visible during mode transitions.',
+    styles: [],
+  },
+];
+
 function App(): React.JSX.Element {
   const editorRef = useRef<RichTextEditorRef>(null);
-  const [content, setContent] = React.useState<Block[]>([]);
+  const [mode, setMode] = React.useState<'view' | 'edit'>('view');
+  const [isLoading, setIsLoading] = React.useState(true);
 
-  const handleContentChange = (event: ContentChangeEvent) => {
-    console.log('Content changed:', event.nativeEvent.text);
-    setContent(event.nativeEvent.blocks);
-  };
+  // Simulate data fetch delay (like detailQuery.isLoading)
+  React.useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), 1000);
+    return () => clearTimeout(timer);
+  }, []);
 
-  const handleBold = () => {
-    editorRef.current?.toggleBold();
-  };
+  const handleSwitchToEdit = () => setMode('edit');
+  const handleBackToView = () => setMode('view');
 
-  const handleItalic = () => {
-    editorRef.current?.toggleItalic();
-  };
+  // ─── Exact same layout as ManageKBRegistry view mode ───
+  // ContainerView = KeyboardAvoidingView > View > ScrollView
+  if (mode === 'view') {
+    return (
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.flex1}
+        enabled={false}
+      >
+        <SafeAreaView style={styles.flex1}>
+          <ScrollView
+            showsHorizontalScrollIndicator={false}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.viewScrollContent}
+          >
+            {/* Header with back + actions (like Animated.View viewHeader) */}
+            <View style={styles.viewHeader}>
+              <Text style={styles.title}>KB Registry</Text>
+              <TouchableOpacity onPress={handleSwitchToEdit}>
+                <Text style={styles.actionButton}>Edit</Text>
+              </TouchableOpacity>
+            </View>
 
-  const handleClear = () => {
-    editorRef.current?.clear();
-  };
+            {/* Body container (like viewBodyContainer) */}
+            <View style={styles.viewBodyContainer}>
+              <View style={styles.viewTitleContainer}>
+                <Text style={styles.titleText}>Sample KB Record</Text>
+              </View>
+              <View style={styles.shortDescriptionContainer}>
+                <Text style={styles.shortDescriptionText}>
+                  This is a short description of the KB record
+                </Text>
+              </View>
 
-  const sampleContent: Block[] = [
-    {
-      type: 'paragraph',
-      text: 'This is a rich text editor demo with multiple lines of content that should be truncate when displayed in read-only mode with numberOfLines set.',
-      styles: [{ style: 'bold', start: 0, end: 4 }],
-    },
-    {
-      type: 'numbered',
-      text: 'First bullet item with bold text',
-      styles: [{ style: 'bold', start: 23, end: 32 }],
-    },
-    {
-      type: 'bullet',
-      text: 'Second bullet item with italic',
-      styles: [{ style: 'italic', start: 24, end: 30 }],
-    },
-    {
-      type: 'numbered',
-      text: 'First numbered item',
-      styles: [{ style: 'underline', start: 0, end: 5 }],
-    },
-    {
-      type: 'numbered',
-      text: 'Second numbered item with strikethrough',
-      styles: [{ style: 'strikethrough', start: 25, end: 38 }],
-    },
-    {
-      type: 'paragraph',
-      text: 'This second paragraph adds more content to demonstrate the ellipsis truncation behavior.',
-      styles: [{ style: 'italic', start: 5, end: 11 }],
-    },
-    {
-      type: 'paragraph',
-      text: 'This third paragraph should not be visible at all when numberOfLines is 2 fhfhfh fhfhf fhhfhf fhfhfh fhfhfhhdhdh dhhdhdhdhshs.',
-      styles: [],
-    },
-  ];
+              {/* Conditional render - exact same pattern */}
+              <View style={styles.viewDescriptionContainer}>
+                {isLoading && <ActivityIndicator />}
+                {!isLoading && (
+                  <RichTextEditor
+                    readOnly
+                    initialContent={sampleContent}
+                    variant="plain"
+                    style={styles.richTextEditorReadOnly}
+                  />
+                )}
+              </View>
+            </View>
+          </ScrollView>
 
+          <View style={styles.reloadRow}>
+            <Button
+              title="Simulate Reload"
+              onPress={() => {
+                setIsLoading(true);
+                setTimeout(() => setIsLoading(false), 500);
+              }}
+            />
+          </View>
+        </SafeAreaView>
+      </KeyboardAvoidingView>
+    );
+  }
+
+  // ─── Edit mode (like ManageKBRegistry edit mode) ───
   return (
-    <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Rich Text Editor Demo</Text>
-      </View>
+    <SafeAreaView style={styles.flex1}>
+      <KeyboardAvoidingView style={styles.flex1} behavior="padding">
+        <View style={styles.viewHeader}>
+          <TouchableOpacity onPress={handleBackToView}>
+            <Text style={styles.actionButton}>← Back</Text>
+          </TouchableOpacity>
+          <Text style={styles.title}>Edit Mode</Text>
+        </View>
 
-      <Text style={styles.sectionLabel}>Read-Only with numberOfLines=2:</Text>
-      <View style={styles.editorContainer}>
-        <RichTextEditor
-          style={styles.editor}
-          initialContent={sampleContent}
-          readOnly
-          variant="flat"
-          numberOfLines={4}
-        />
-      </View>
+        <ScrollView
+          style={styles.flex1}
+          contentContainerStyle={styles.formContentContainer}
+          keyboardShouldPersistTaps="handled"
+        >
+          <RichTextEditor
+            ref={editorRef}
+            initialContent={sampleContent}
+            variant="flat"
+            style={{ minHeight: 200 }}
+          />
+        </ScrollView>
 
-      <Text style={styles.sectionLabel}>Editable Editor:</Text>
-      <View style={styles.editorContainer}>
-        <RichTextEditor
-          ref={editorRef}
-          style={styles.editor}
-          placeholder="Start typing..."
-          onContentChange={handleContentChange}
-          variant="outlined"
-          maxHeight={200}
-        />
-      </View>
+        <View style={styles.buttonContainer}>
+          <TouchableOpacity
+            style={styles.saveButton}
+            onPress={handleBackToView}
+          >
+            <Text style={styles.saveButtonText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.saveButton}>
+            <Text style={styles.saveButtonText}>Save</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
+  flex1: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
   },
-  header: {
-    padding: 16,
+  viewHeader: {
+    zIndex: 998,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    height: 64,
+    alignItems: 'center',
+    paddingHorizontal: 16,
     backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
   },
   title: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    textAlign: 'center',
+    fontSize: 17,
+    fontWeight: '500',
   },
-  sectionLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#666',
-    paddingHorizontal: 16,
-    paddingTop: 16,
-    paddingBottom: 4,
+  actionButton: {
+    fontSize: 16,
+    color: '#007AFF',
   },
-  editorContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+  viewScrollContent: {
+    paddingTop: 20,
+    paddingBottom: 24,
   },
-  editor: {
-    borderRadius: 8,
-    minHeight: 100,
+  viewBodyContainer: {
+    marginHorizontal: 20,
   },
-  buttonRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    padding: 16,
-  },
-  debugContainer: {
-    flex: 1,
-    padding: 16,
-    backgroundColor: '#fff',
-    margin: 16,
-    borderRadius: 8,
-  },
-  debugTitle: {
-    fontSize: 14,
-    fontWeight: 'bold',
+  viewTitleContainer: {
     marginBottom: 8,
   },
-  debugText: {
-    fontSize: 12,
-    fontFamily: 'monospace',
+  titleText: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  shortDescriptionText: {
     color: '#666',
+    fontSize: 13,
+    marginTop: 4,
+  },
+  shortDescriptionContainer: {
+    marginBottom: 12,
+  },
+  viewDescriptionContainer: {},
+  richTextEditorReadOnly: {
+    padding: 0,
+    margin: 0,
+    minHeight: 200,
+  },
+  formContentContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 32,
+    gap: 8,
+  },
+  buttonContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingBottom: 10,
+  },
+  saveButton: {
+    flex: 1,
+    padding: 14,
+    backgroundColor: '#007AFF',
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  saveButtonText: {
+    color: '#fff',
+    fontWeight: '600',
+  },
+  reloadRow: {
+    padding: 12,
   },
 });
 

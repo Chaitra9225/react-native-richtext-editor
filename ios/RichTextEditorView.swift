@@ -659,7 +659,7 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
     @objc var onActiveStylesChange: RCTDirectEventBlock?
 
     private var lastReportedHeight: CGFloat = 0
-    private var calculatedHeight: CGFloat = 44
+    private var calculatedHeight: CGFloat = 0
 
     override init(frame: CGRect) {
         super.init(frame: frame)
@@ -1408,7 +1408,13 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
     }
 
     override var intrinsicContentSize: CGSize {
-        return CGSize(width: UIView.noIntrinsicMetric, height: calculatedHeight)
+        let width = bounds.width > 0 ? bounds.width : UIScreen.main.bounds.width - 32
+        let fittingSize = textView.sizeThatFits(CGSize(width: width, height: CGFloat.greatestFiniteMagnitude))
+        var height = max(fittingSize.height, 44)
+        if maxHeight > 0 {
+            height = min(height, maxHeight)
+        }
+        return CGSize(width: UIView.noIntrinsicMetric, height: height)
     }
 
     override func sizeThatFits(_ size: CGSize) -> CGSize {
@@ -2673,10 +2679,8 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
         let endPosition = textView.text?.count ?? 0
         textView.selectedRange = NSRange(location: endPosition, length: 0)
 
-        DispatchQueue.main.async { [weak self] in
-            self?.textView.scrollRangeToVisible(NSRange(location: endPosition, length: 0))
-            self?.updateContentSize()
-        }
+        textView.scrollRangeToVisible(NSRange(location: endPosition, length: 0))
+        updateContentSize()
     }
 
     func getText() -> String {
