@@ -147,7 +147,7 @@ function App(): React.JSX.Element {
             ref={editorRef}
             initialContent={sampleContent}
             variant="flat"
-            style={{ minHeight: 200 }}
+            style={{}}
           />
         </ScrollView>
 
@@ -214,7 +214,6 @@ const styles = StyleSheet.create({
   richTextEditorReadOnly: {
     padding: 0,
     margin: 0,
-    minHeight: 200,
   },
   formContentContainer: {
     paddingHorizontal: 20,

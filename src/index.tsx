@@ -39,7 +39,14 @@ export interface RichTextEditorPropsExtended extends RichTextEditorProps {
 const RichTextEditor = React.forwardRef<RichTextEditorRef, RichTextEditorPropsExtended>(
   (props, ref) => {
     const nativeRef = React.useRef<React.ElementRef<typeof RichTextEditorViewNative>>(null);
-    const handleSizeChange = React.useCallback((_event: SizeChangeEvent) => {}, []);
+    const handleSizeChange = React.useCallback((event: SizeChangeEvent) => {
+      const newHeight = event.nativeEvent?.height;
+      if (newHeight && newHeight > 0 && nativeRef.current) {
+        // Update Yoga node directly via setNativeProps — no React re-render, no flicker
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (nativeRef.current as any).setNativeProps({ style: { height: newHeight } });
+      }
+    }, []);
 
     const dispatchAndroidCommand = React.useCallback(
       (commandName: string, args: (string | number | boolean)[] = []) => {
