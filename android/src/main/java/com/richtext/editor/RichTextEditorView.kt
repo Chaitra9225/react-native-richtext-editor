@@ -133,7 +133,7 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
     init {
         density = context.resources.displayMetrics.density
         minHeightPx = 44 * density
-        calculatedHeight = minHeightPx
+        calculatedHeight = 0f
         bottomBorderPaint.strokeWidth = density
 
         val paddingHorizontal = (12 * density).toInt()
@@ -1166,13 +1166,11 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
             setSelection(spannable.length)
         }
         isInternalChange = false
-        post {
-            if (numberOfLinesValue > 0 && !isEnabled) {
-                scrollTo(0, 0)
-                applyEllipsisIfNeeded()
-            }
-            updateContentSize()
+        if (numberOfLinesValue > 0 && !isEnabled) {
+            scrollTo(0, 0)
+            applyEllipsisIfNeeded()
         }
+        updateContentSize()
     }
 
     fun getTextContent(): String = text.toString()

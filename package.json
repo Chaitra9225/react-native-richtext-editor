@@ -1,6 +1,6 @@
 {
   "name": "@chaitrabhairappa/react-native-rich-text-editor",
-  "version": "3.4.2",
+  "version": "3.4.3",
   "description": "A high-performance native rich text editor for React Native (New Architecture / Fabric only)",
   "main": "lib/commonjs/index.js",
   "module": "lib/module/index.js",
