@@ -21,14 +21,14 @@ Unlike other rich text editor packages that rely on HTML and WebView, this libra
 - Headings
 - Quotes and Checklists
 - Media attachments (images)
-- Link insertion
+- Link insertion with clickable hyperlinks in readOnly mode
+- Auto-detection of URLs (typed or pasted)
 - Undo/Redo
 - Text alignment (left, center, right)
 - Indent/Outdent
 - Floating toolbar with customizable options
 - Three variants: outlined, flat, and plain
 - Auto-growing height
-- **`numberOfLines` support** — truncate text with ellipsis in readOnly mode
 - **Delta-based content updates** for optimized performance
 - **Synchronous style detection** via `onActiveStylesChange`
 
@@ -141,7 +141,6 @@ export default App;
 | `initialContent`    | `Block[]`                               | `[]`         | Initial content blocks                       |
 | `readOnly`          | `boolean`                               | `false`      | Make editor read-only                        |
 | `selectable`        | `boolean`                               | `true`       | Enable/disable text selection                |
-| `numberOfLines`     | `number`                                | `undefined`  | Truncate text with ellipsis in readOnly mode |
 | `maxHeight`         | `number`                                | `undefined`  | Maximum height before scrolling              |
 | `showToolbar`       | `boolean`                               | `true`       | Show/hide floating toolbar                   |
 | `toolbarOptions`    | `ToolbarOption[]`                       | All options  | Customize toolbar buttons                    |
@@ -255,16 +254,6 @@ type ToolbarOption =
   | 'alignRight';
 ```
 
-## Read-Only with numberOfLines
-
-Use the `numberOfLines` prop along with `readOnly` to truncate content with an ellipsis:
-
-```tsx
-<RichTextEditor readOnly numberOfLines={3} initialContent={initialContent} />
-```
-
-This works like React Native's `Text` component — content is truncated at the specified number of lines with a trailing ellipsis.
-
 ## Media Attachments
 
 You can insert images into the editor using the `insertMediaAttachment` ref method. The toolbar also includes a `mediaAttachment` button that triggers the native media attachment flow.
@@ -315,6 +304,12 @@ const toolbarOptions: ToolbarOption[] = ['bold', 'italic', 'underline', 'bullet'
 
 ## Changelog
 
+### 3.5.0
+
+- Clickable hyperlinks in readOnly mode — links are highlighted in blue with underline and open in the browser on tap (iOS & Android)
+- Auto-detection of URLs — typed or pasted URLs are automatically converted to clickable links after a space or newline
+- Fix Android link URL not being parsed from initialContent
+
 ### 3.3.0
 
 - Add `selectable` prop to enable/disable text selection (iOS & Android)
@@ -328,7 +323,6 @@ const toolbarOptions: ToolbarOption[] = ['bold', 'italic', 'underline', 'bullet'
 
 ### 2.1.2
 
-- Add `numberOfLines` prop to truncate text with ellipsis in readOnly mode (iOS & Android)
 - Fix Android `onContentChange` to correctly extract text styles (bold, italic, underline, strikethrough, code, highlight)
 - Fix Android `onContentChange` to correctly detect block types (bullet, numbered, checklist, quote)
 - Android: auto-scroll to cursor when content exceeds maxHeight

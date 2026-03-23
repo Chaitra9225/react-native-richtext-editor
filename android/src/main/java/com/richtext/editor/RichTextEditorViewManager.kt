@@ -164,6 +164,9 @@ class RichTextEditorViewManager : SimpleViewManager<RichTextEditorView>() {
                         styleMap["style"] = style.optString("style", "")
                         styleMap["start"] = style.optInt("start", 0)
                         styleMap["end"] = style.optInt("end", 0)
+                        if (style.has("url")) {
+                            styleMap["url"] = style.optString("url", "")
+                        }
                         stylesList.add(styleMap)
                     }
                 }

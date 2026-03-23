@@ -40,13 +40,10 @@ const sampleContent: Block[] = [
   },
   {
     type: 'paragraph',
-    text: 'This second paragraph adds more content to demonstrate the resize behavior when switching between view and edit modes.',
-    styles: [{ style: 'italic', start: 5, end: 11 }],
-  },
-  {
-    type: 'paragraph',
-    text: 'Another paragraph to make the content taller so the flicker is more visible during mode transitions.',
-    styles: [],
+    text: 'Visit Google for more info.',
+    styles: [
+      { style: 'link', start: 6, end: 12, url: 'https://www.google.com' },
+    ],
   },
 ];
 
@@ -81,7 +78,7 @@ function App(): React.JSX.Element {
           >
             {/* Header with back + actions (like Animated.View viewHeader) */}
             <View style={styles.viewHeader}>
-              <Text style={styles.title}>KB Registry</Text>
+              <Text style={styles.title}>RichText example</Text>
               <TouchableOpacity onPress={handleSwitchToEdit}>
                 <Text style={styles.actionButton}>Edit</Text>
               </TouchableOpacity>
@@ -90,11 +87,11 @@ function App(): React.JSX.Element {
             {/* Body container (like viewBodyContainer) */}
             <View style={styles.viewBodyContainer}>
               <View style={styles.viewTitleContainer}>
-                <Text style={styles.titleText}>Sample KB Record</Text>
+                <Text style={styles.titleText}>Title</Text>
               </View>
               <View style={styles.shortDescriptionContainer}>
                 <Text style={styles.shortDescriptionText}>
-                  This is a short description of the KB record
+                  This is a short description
                 </Text>
               </View>
 
@@ -170,6 +167,7 @@ function App(): React.JSX.Element {
 const styles = StyleSheet.create({
   flex1: {
     flex: 1,
+    paddingTop: 40,
   },
   viewHeader: {
     zIndex: 998,

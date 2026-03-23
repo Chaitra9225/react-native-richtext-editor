@@ -492,7 +492,7 @@ class RichTextView: UITextView {
 }
 
 @objcMembers
-class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDelegate, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
+class RichTextEditorView: UIView, UITextViewDelegate, UIGestureRecognizerDelegate, PHPickerViewControllerDelegate, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
     private static let defaultLineHeightMultiple: CGFloat = 1.3
     private static let mediaPlaceholderCharacter: Character = "\u{FFFC}"
     private static let mediaAttachmentAttributeKey = NSAttributedString.Key("richTextMediaAttachment")
@@ -510,6 +510,11 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
         tv.typingAttributes = [
             .font: UIFont.systemFont(ofSize: 16),
             .paragraphStyle: paragraphStyle
+        ]
+
+        tv.linkTextAttributes = [
+            .foregroundColor: UIColor.systemBlue,
+            .underlineStyle: NSUnderlineStyle.single.rawValue
         ]
 
         return tv
@@ -580,6 +585,8 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
     }
 
     @objc var showToolbar: Bool = true
+    private var longPressToolbarShowing: Bool = false
+    private var longPressToolbarJustShown: Bool = false
 
     @objc var toolbarOptions: [String]? {
         didSet {
@@ -733,9 +740,93 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
             return false
         }
 
+        let linkTapGesture = UITapGestureRecognizer(target: self, action: #selector(handleLinkTap(_:)))
+        linkTapGesture.delegate = self
+        textView.addGestureRecognizer(linkTapGesture)
+
+        let longPressGesture = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
+        longPressGesture.delegate = self
+        textView.addGestureRecognizer(longPressGesture)
+
         NotificationCenter.default.addObserver(self, selector: #selector(textDidChange), name: UITextView.textDidChangeNotification, object: textView)
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillShow(_:)), name: UIResponder.keyboardWillShowNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(keyboardWillHide(_:)), name: UIResponder.keyboardWillHideNotification, object: nil)
+    }
+
+    @objc private func handleLinkTap(_ gesture: UITapGestureRecognizer) {
+        guard !editable else { return }
+        let location = gesture.location(in: textView)
+        guard let position = textView.closestPosition(to: location) else { return }
+        let charIndex = textView.offset(from: textView.beginningOfDocument, to: position)
+        let attrText = textView.attributedText ?? NSAttributedString()
+        guard charIndex >= 0 && charIndex < attrText.length else { return }
+        if let url = attrText.attribute(.link, at: charIndex, effectiveRange: nil) {
+            let linkURL: URL?
+            if let urlObj = url as? URL {
+                linkURL = urlObj
+            } else if let urlStr = url as? String {
+                linkURL = URL(string: urlStr)
+            } else {
+                linkURL = nil
+            }
+            if let linkURL = linkURL {
+                UIApplication.shared.open(linkURL)
+            }
+        }
+    }
+
+    @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
+        guard gesture.state == .began,
+              showToolbar,
+              editable,
+              textView.selectedRange.length == 0,
+              let window = window else { return }
+
+        longPressToolbarShowing = true
+        longPressToolbarJustShown = true
+        let cursorPosition: UITextPosition
+        if let selectedRange = textView.selectedTextRange {
+            cursorPosition = selectedRange.start
+        } else {
+            return
+        }
+
+        let caretRect = textView.caretRect(for: cursorPosition)
+        guard !caretRect.isNull && !caretRect.isInfinite else { return }
+
+        let convertedRect = textView.convert(caretRect, to: window)
+        guard convertedRect.maxY > 0 && convertedRect.minY < window.bounds.height else { return }
+
+        let toolbarWidth: CGFloat = floatingToolbar.getToolbarWidth()
+        let toolbarHeight: CGFloat = 52
+
+        let safeAreaTop = window.safeAreaInsets.top
+        let safeAreaBottom = window.safeAreaInsets.bottom
+
+        var toolbarX = (window.bounds.width - toolbarWidth) / 2
+        var toolbarY = convertedRect.maxY + 8
+
+        toolbarX = max(8, min(toolbarX, window.bounds.width - toolbarWidth - 8))
+
+        let maxY = window.bounds.height - safeAreaBottom - currentKeyboardHeight - toolbarHeight - 8
+        if toolbarY > maxY {
+            toolbarY = convertedRect.minY - toolbarHeight - 8
+            if toolbarY < safeAreaTop + 8 {
+                toolbarY = safeAreaTop + 8
+            }
+        }
+
+        toolbarBackdrop.frame = window.bounds
+        toolbarBackdrop.isHidden = false
+        window.bringSubviewToFront(toolbarBackdrop)
+
+        floatingToolbar.frame = CGRect(x: toolbarX, y: toolbarY, width: toolbarWidth, height: toolbarHeight)
+        floatingToolbar.isHidden = false
+        window.bringSubviewToFront(floatingToolbar)
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer) -> Bool {
+        return true
     }
 
     @objc private func keyboardWillShow(_ notification: Notification) {
@@ -754,6 +845,7 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
     }
 
     private func hideToolbar() {
+        longPressToolbarShowing = false
         floatingToolbar.isHidden = true
         toolbarBackdrop.isHidden = true
     }
@@ -785,9 +877,12 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
               !selectedRange.isEmpty,
               showToolbar,
               let window = window else {
-            hideToolbar()
+            if !longPressToolbarShowing {
+                hideToolbar()
+            }
             return
         }
+        longPressToolbarShowing = false
 
        let endRect = textView.caretRect(for: selectedRange.end)
         let startRect = textView.caretRect(for: selectedRange.start)
@@ -833,6 +928,13 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
         window.bringSubviewToFront(floatingToolbar)
     }
 
+    func textView(_ textView: UITextView, shouldInteractWith URL: URL, in characterRange: NSRange, interaction: UITextItemInteraction) -> Bool {
+        if !editable {
+            UIApplication.shared.open(URL)
+        }
+        return false
+    }
+
     func textViewDidBeginEditing(_ textView: UITextView) {
         onEditorFocus?([:])
     }
@@ -846,6 +948,14 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
        let range = textView.selectedRange
         if range.length > 0 {
             savedSelectionRange = range
+        }
+
+        if longPressToolbarShowing && range.length == 0 {
+            if longPressToolbarJustShown {
+                longPressToolbarJustShown = false
+            } else {
+                longPressToolbarShowing = false
+            }
         }
 
         updateToolbarPosition()
@@ -1229,6 +1339,7 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
 
         if !isInternalChange {
             autoContinueListOnEnter()
+            autoDetectLinks()
             saveToUndoStack()
         }
 
@@ -1236,6 +1347,44 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
         renumberNumberedLists()
         updateContentSize()
         sendContentChange()
+    }
+
+    private func autoDetectLinks() {
+        guard let text = textView.text, !text.isEmpty else { return }
+        let cursorPos = textView.selectedRange.location
+
+        // Only auto-detect after space or newline (user finished typing the URL)
+        if cursorPos > 0, cursorPos <= text.count {
+            let nsText = text as NSString
+            let prevChar = nsText.character(at: cursorPos - 1)
+            // space = 32, newline = 10
+            if prevChar != 32 && prevChar != 10 { return }
+        }
+
+        let nsText = text as NSString
+        let fullRange = NSRange(location: 0, length: nsText.length)
+        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return }
+        let matches = detector.matches(in: text, range: fullRange)
+        let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
+        var changed = false
+
+        for match in matches {
+            guard let url = match.url else { continue }
+            let existingLink = mutable.attribute(.link, at: match.range.location, effectiveRange: nil)
+            if existingLink != nil { continue }
+            mutable.addAttribute(.link, value: url.absoluteString, range: match.range)
+            mutable.addAttribute(.foregroundColor, value: UIColor.systemBlue, range: match.range)
+            mutable.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: match.range)
+            changed = true
+        }
+
+        if changed {
+            let savedSelection = textView.selectedRange
+            isInternalChange = true
+            textView.attributedText = mutable
+            textView.selectedRange = savedSelection
+            isInternalChange = false
+        }
     }
 
     private func autoContinueListOnEnter() {

@@ -60,11 +60,13 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
     private var customTypeface: Typeface? = null
     private var density: Float = 1f
     private var isInternalChange = false
+    private var isEditable = true
     private var lastReportedHeight: Float = 0f
     private var calculatedHeight: Float = 0f
     private var minHeightPx: Float = 0f
     private var isInitialized = false
 
+    private var longPressToolbarShowing = false
     private var previousText: String = ""
     private var pendingDelta: Map<String, Any>? = null
     private var pendingPrefixDeletion: Pair<Int, Int>? = null // (lineStart, prefixLength) for backspace-in-prefix
@@ -117,7 +119,6 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
     private var savedSelectionStart: Int = 0
     private var savedSelectionEnd: Int = 0
 
-    // Gesture detector for double-tap word selection
     private val gestureDetector = GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
         override fun onDoubleTap(e: MotionEvent): Boolean {
             selectWordAtPosition(e.x, e.y)
@@ -125,8 +126,16 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         }
 
         override fun onSingleTapUp(e: MotionEvent): Boolean {
-            // Hide toolbar on single tap (deselect)
+            longPressToolbarShowing = false
             return false
+        }
+
+        override fun onLongPress(e: MotionEvent) {
+            if (showToolbar && hasFocus() && selectionStart == selectionEnd) {
+                longPressToolbarShowing = true
+                removeCallbacks(hideToolbarRunnable)
+                postDelayed({ showToolbarAtCursor() }, 50)
+            }
         }
     })
 
@@ -158,6 +167,9 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
 
         // Default outlined style
         applyVariantStyle()
+
+        // Enable link clicks
+        movementMethod = android.text.method.LinkMovementMethod.getInstance()
 
         // Setup toolbar
         setupToolbar()
@@ -222,6 +234,7 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
                         renumberNumberedLists()
                         isInternalChange = false
                     }
+                    autoDetectLinks(s)
                     sendContentChangeWithDelta()
                     saveToUndoStack()
                     pendingDelta = null
@@ -372,10 +385,11 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         // Show/hide toolbar based on selection
         if (selStart != selEnd && showToolbar && hasFocus()) {
             android.util.Log.d("RichTextEditor", "Should show toolbar - selection exists")
+            longPressToolbarShowing = false
             removeCallbacks(hideToolbarRunnable)
             // Use postDelayed to ensure layout is complete
             postDelayed({ showToolbarAtSelection() }, 50)
-        } else {
+        } else if (!longPressToolbarShowing) {
             // Delay hiding to prevent flicker during selection changes
             android.util.Log.d("RichTextEditor", "Scheduling hide toolbar")
             postDelayed(hideToolbarRunnable, 200)
@@ -535,7 +549,56 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         }
     }
 
+    private fun showToolbarAtCursor() {
+        if (!showToolbar || toolbarPopup == null || floatingToolbar == null) return
+        if (!isAttachedToWindow) return
+
+        val cursorPos = selectionStart
+        if (cursorPos < 0) return
+
+        try {
+            val textLayout = layout ?: return
+
+            val cursorLine = textLayout.getLineForOffset(cursorPos)
+            val lineBottom = textLayout.getLineBottom(cursorLine)
+            val lineTop = textLayout.getLineTop(cursorLine)
+
+            val location = IntArray(2)
+            getLocationOnScreen(location)
+
+            val toolbarWidth = floatingToolbar?.getToolbarWidth() ?: (300 * density).toInt()
+            val toolbarHeight = floatingToolbar?.getToolbarHeight() ?: (52 * density).toInt()
+
+            val screenWidth = context.resources.displayMetrics.widthPixels
+            var x = (screenWidth - toolbarWidth) / 2
+            if (x < 0) x = 0
+
+            var y = location[1] + lineBottom + paddingTop + (8 * density).toInt()
+
+            val screenHeight = context.resources.displayMetrics.heightPixels
+            if (y + toolbarHeight > screenHeight - (100 * density).toInt()) {
+                y = location[1] + lineTop + paddingTop - toolbarHeight - (8 * density).toInt()
+            }
+            if (y < 0) y = (8 * density).toInt()
+
+            toolbarPopup?.width = toolbarWidth
+            toolbarPopup?.height = toolbarHeight
+
+            val token = windowToken ?: return
+
+            if (toolbarPopup?.isShowing == true) {
+                toolbarPopup?.update(x, y, toolbarWidth, toolbarHeight)
+            } else {
+                val decorView = (context as? android.app.Activity)?.window?.decorView ?: rootView
+                toolbarPopup?.showAtLocation(decorView, Gravity.NO_GRAVITY, x, y)
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("RichTextEditor", "Error showing toolbar at cursor", e)
+        }
+    }
+
     private fun hideToolbar() {
+        longPressToolbarShowing = false
         try {
             if (toolbarPopup?.isShowing == true) {
                 android.util.Log.d("RichTextEditor", "Hiding toolbar")
@@ -658,6 +721,33 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         }
 
         return Pair(lineStart, lineEnd)
+    }
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        if (!isEditable && event.action == MotionEvent.ACTION_UP) {
+            val x = event.x.toInt() - totalPaddingLeft + scrollX
+            val y = event.y.toInt() - totalPaddingTop + scrollY
+            val textLayout = layout
+            if (textLayout != null) {
+                val line = textLayout.getLineForVertical(y)
+                val off = textLayout.getOffsetForHorizontal(line, x.toFloat())
+                val spannable = text as? Spanned
+                if (spannable != null) {
+                    val urlSpans = spannable.getSpans(off, off, android.text.style.URLSpan::class.java)
+                    if (urlSpans.isNotEmpty()) {
+                        val url = urlSpans[0].url
+                        try {
+                            val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, Uri.parse(url))
+                            context.startActivity(intent)
+                        } catch (e: Exception) {
+                            android.util.Log.e("RichTextEditor", "Failed to open URL: $url", e)
+                        }
+                        return true
+                    }
+                }
+            }
+        }
+        return super.dispatchTouchEvent(event)
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
@@ -786,7 +876,7 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         if (textLayout != null) {
             val lineCount = textLayout.lineCount
             if (lineCount > 0) {
-                val effectiveLineCount = if (numberOfLinesValue > 0 && !isEnabled) {
+                val effectiveLineCount = if (numberOfLinesValue > 0 && !isEditable) {
                     minOf(numberOfLinesValue, lineCount)
                 } else {
                     lineCount
@@ -824,7 +914,7 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         val lineCount = textLayout.lineCount
         if (lineCount == 0) return
 
-        val effectiveLineCount = if (numberOfLinesValue > 0 && !isEnabled) {
+        val effectiveLineCount = if (numberOfLinesValue > 0 && !isEditable) {
             minOf(numberOfLinesValue, lineCount)
         } else {
             lineCount
@@ -862,7 +952,7 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
             }
         }
 
-        if (maxHeightValue > 0 && textLayout.lineCount > 0 && !(numberOfLinesValue > 0 && !isEnabled)) {
+        if (maxHeightValue > 0 && textLayout.lineCount > 0 && !(numberOfLinesValue > 0 && !isEditable)) {
             val cursorPos = selectionEnd.coerceAtLeast(0)
             val cursorLine = textLayout.getLineForOffset(cursorPos)
             val cursorBottom = textLayout.getLineBottom(cursorLine)
@@ -1000,9 +1090,17 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
     }
 
     fun setEditable(value: Boolean) {
-        isEnabled = value
-        if (!value) {
-            movementMethod = android.text.method.LinkMovementMethod.getInstance()
+        isEditable = value
+        if (value) {
+            isEnabled = true
+            isFocusable = true
+            isFocusableInTouchMode = true
+            isCursorVisible = true
+        } else {
+            isFocusable = false
+            isFocusableInTouchMode = false
+            isCursorVisible = false
+            isEnabled = true // Keep enabled so touch events fire for link clicks
         }
         if (numberOfLinesValue > 0) {
             setNumberOfLinesValue(numberOfLinesValue)
@@ -1013,6 +1111,35 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         setTextIsSelectable(value)
     }
 
+    private fun autoDetectLinks(s: Editable?) {
+        if (s == null || s.isEmpty()) return
+        val text = s.toString()
+        val cursorPos = selectionStart
+
+        // Only auto-detect when the character before cursor is a space or newline
+        // (i.e., user finished typing the URL)
+        if (cursorPos > 0 && cursorPos <= text.length) {
+            val prevChar = text[cursorPos - 1]
+            if (prevChar != ' ' && prevChar != '\n') return
+        }
+
+        val urlPattern = android.util.Patterns.WEB_URL
+        val matcher = urlPattern.matcher(text)
+        isInternalChange = true
+        while (matcher.find()) {
+            val start = matcher.start()
+            val end = matcher.end()
+            val existingSpans = s.getSpans(start, end, android.text.style.URLSpan::class.java)
+            if (existingSpans.isNotEmpty()) continue
+            val url = matcher.group() ?: continue
+            val fullUrl = if (!url.startsWith("http://") && !url.startsWith("https://")) "https://$url" else url
+            s.setSpan(android.text.style.URLSpan(fullUrl), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            s.setSpan(android.text.style.ForegroundColorSpan(Color.parseColor("#2196F3")), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            s.setSpan(UnderlineSpan(), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+        }
+        isInternalChange = false
+    }
+
     fun setMaxHeightValue(value: Int) {
         maxHeightValue = value
         post { updateContentSize() }
@@ -1020,7 +1147,7 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
 
     fun setNumberOfLinesValue(value: Int) {
         numberOfLinesValue = if (value == 0) 0 else value
-        if (numberOfLinesValue > 0 && !isEnabled) {
+        if (numberOfLinesValue > 0 && !isEditable) {
             maxLines = numberOfLinesValue
             ellipsize = android.text.TextUtils.TruncateAt.END
             isVerticalScrollBarEnabled = false
@@ -1155,6 +1282,8 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
                     "link" -> {
                         val url = styleInfo["url"] as? String ?: ""
                         spannable.setSpan(android.text.style.URLSpan(url), absoluteStart, absoluteEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        spannable.setSpan(android.text.style.ForegroundColorSpan(Color.parseColor("#2196F3")), absoluteStart, absoluteEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                        spannable.setSpan(UnderlineSpan(), absoluteStart, absoluteEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                     }
                 }
             }
@@ -1167,13 +1296,13 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
 
         isInternalChange = true
         setText(spannable)
-        if (numberOfLinesValue > 0 && !isEnabled) {
+        if (numberOfLinesValue > 0 && !isEditable) {
             setSelection(0)
         } else {
             setSelection(spannable.length)
         }
         isInternalChange = false
-        if (numberOfLinesValue > 0 && !isEnabled) {
+        if (numberOfLinesValue > 0 && !isEditable) {
             scrollTo(0, 0)
             applyEllipsisIfNeeded()
         }

@@ -1748,7 +1748,7 @@ PODS:
     - React-RCTFBReactNativeSpec
     - ReactCommon/turbomodule/core
     - SocketRocket
-  - react-native-richtext-editor (3.4.3):
+  - react-native-richtext-editor (3.5.0):
     - React-Core
   - react-native-safe-area-context (5.6.2):
     - boost
@@ -2647,7 +2647,7 @@ SPEC CHECKSUMS:
   React-logger: 6aa0606d9b8746a0df076bf77cc9940a6405452b
   React-Mapbuffer: 8f8bba0802f49d7926602c5c276f2a2083a5ac55
   React-microtasksnativemodule: 1e4d3178ba5d5000b351b902c603fb0c9d60649e
-  react-native-richtext-editor: 4a45c3c123cb6f5397ac5de059d3d24a1356fb47
+  react-native-richtext-editor: 9474e9380d794f3b5bebf1be20acfc53fa9c21bd
   react-native-safe-area-context: c00143b4823773bba23f2f19f85663ae89ceb460
   React-NativeModulesApple: 183f9bd5b20a51a8b016e90be78ed6c1538da4a7
   React-oscompat: d5e3366fbd6c7150e17c1bda85eab583a6fa9fce
