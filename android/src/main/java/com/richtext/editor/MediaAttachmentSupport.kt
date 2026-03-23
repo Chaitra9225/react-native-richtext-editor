@@ -278,10 +278,33 @@ class MediaAttachmentSupport(
         return Pair(scaled, targetHeightPx)
     }
 
+    private fun hasExplicitDimensions(mediaData: MediaAttachmentData): Boolean {
+        return mediaData.widthDp > 0 && mediaData.heightDp > 0
+    }
+
+    private fun scaleToExplicitDimensions(bitmap: Bitmap, mediaData: MediaAttachmentData, targetWidthPx: Int): Pair<Bitmap, MediaAttachmentData> {
+        val explicitWidthPx = (mediaData.widthDp * density).toInt().coerceAtMost(targetWidthPx).coerceAtLeast(1)
+        val scale = explicitWidthPx.toFloat() / (mediaData.widthDp * density).coerceAtLeast(1f)
+        val explicitHeightPx = (mediaData.heightDp * density * scale).toInt().coerceAtLeast(1)
+        val scaled = if (bitmap.width == explicitWidthPx && bitmap.height == explicitHeightPx) {
+            bitmap
+        } else {
+            Bitmap.createScaledBitmap(bitmap, explicitWidthPx, explicitHeightPx, true)
+        }
+        val updatedData = mediaData.copy(
+            widthDp = (explicitWidthPx / density).toInt().coerceAtLeast(1),
+            heightDp = (explicitHeightPx / density).toInt().coerceAtLeast(1)
+        )
+        return Pair(scaled, updatedData)
+    }
+
     private fun loadBitmapForMedia(mediaData: MediaAttachmentData, targetWidthPx: Int): Pair<Bitmap, MediaAttachmentData>? {
         if (mediaData.uri.isBlank() || mediaData.uri == "red-box-placeholder") return null
 
         mediaBitmapCache[mediaData.uri]?.let { cached ->
+            if (hasExplicitDimensions(mediaData)) {
+                return scaleToExplicitDimensions(cached, mediaData, targetWidthPx)
+            }
             val (scaledBitmap, targetHeightPx) = buildScaledBitmapWithAspect(cached, targetWidthPx)
             val updatedData = mediaData.copy(
                 widthDp = (targetWidthPx / density).toInt().coerceAtLeast(1),
@@ -303,6 +326,9 @@ class MediaAttachmentSupport(
                         BitmapFactory.decodeStream(inputStream)
                     }?.let { original ->
                         mediaBitmapCache[mediaData.uri] = original
+                        if (hasExplicitDimensions(mediaData)) {
+                            return scaleToExplicitDimensions(original, mediaData, targetWidthPx)
+                        }
                         val (scaledBitmap, targetHeightPx) = buildScaledBitmapWithAspect(original, targetWidthPx)
                         val updatedData = mediaData.copy(
                             widthDp = (targetWidthPx / density).toInt().coerceAtLeast(1),
@@ -331,11 +357,16 @@ class MediaAttachmentSupport(
                 } ?: return@Thread
 
                 mediaBitmapCache[uriString] = loaded
-                val (scaledBitmap, targetHeightPx) = buildScaledBitmapWithAspect(loaded, targetWidthPx)
-                val updatedData = mediaData.copy(
-                    widthDp = (targetWidthPx / density).toInt().coerceAtLeast(1),
-                    heightDp = (targetHeightPx / density).toInt().coerceAtLeast(1)
-                )
+                val result = if (hasExplicitDimensions(mediaData)) {
+                    scaleToExplicitDimensions(loaded, mediaData, targetWidthPx)
+                } else {
+                    val (scaledBitmap, targetHeightPx) = buildScaledBitmapWithAspect(loaded, targetWidthPx)
+                    Pair(scaledBitmap, mediaData.copy(
+                        widthDp = (targetWidthPx / density).toInt().coerceAtLeast(1),
+                        heightDp = (targetHeightPx / density).toInt().coerceAtLeast(1)
+                    ))
+                }
+                val (scaledBitmap, updatedData) = result
 
                 runOnUiThread {
                     synchronized(loadingRemoteUris) {

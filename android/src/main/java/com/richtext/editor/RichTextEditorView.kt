@@ -1001,6 +1001,9 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
 
     fun setEditable(value: Boolean) {
         isEnabled = value
+        if (!value) {
+            movementMethod = android.text.method.LinkMovementMethod.getInstance()
+        }
         if (numberOfLinesValue > 0) {
             setNumberOfLinesValue(numberOfLinesValue)
         }
@@ -1149,6 +1152,10 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
                         spannable.setSpan(BackgroundColorSpan(Color.parseColor("#F5F5F5")), absoluteStart, absoluteEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
                     }
                     "highlight" -> spannable.setSpan(BackgroundColorSpan(Color.parseColor("#80FFFF00")), absoluteStart, absoluteEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    "link" -> {
+                        val url = styleInfo["url"] as? String ?: ""
+                        spannable.setSpan(android.text.style.URLSpan(url), absoluteStart, absoluteEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    }
                 }
             }
 
@@ -1171,6 +1178,11 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
             applyEllipsisIfNeeded()
         }
         updateContentSize()
+
+        post {
+            requestLayout()
+            post { updateContentSize() }
+        }
     }
 
     fun getTextContent(): String = text.toString()

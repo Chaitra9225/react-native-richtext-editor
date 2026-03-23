@@ -39,12 +39,11 @@ export interface RichTextEditorPropsExtended extends RichTextEditorProps {
 const RichTextEditor = React.forwardRef<RichTextEditorRef, RichTextEditorPropsExtended>(
   (props, ref) => {
     const nativeRef = React.useRef<React.ElementRef<typeof RichTextEditorViewNative>>(null);
+    const [nativeHeight, setNativeHeight] = React.useState<number | undefined>(undefined);
     const handleSizeChange = React.useCallback((event: SizeChangeEvent) => {
-      const newHeight = event.nativeEvent?.height;
-      if (newHeight && newHeight > 0 && nativeRef.current) {
-        // Update Yoga node directly via setNativeProps — no React re-render, no flicker
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (nativeRef.current as any).setNativeProps({ style: { height: newHeight } });
+      const h = event.nativeEvent.height;
+      if (h > 0) {
+        setNativeHeight(h);
       }
     }, []);
 
@@ -256,7 +255,10 @@ const RichTextEditor = React.forwardRef<RichTextEditorRef, RichTextEditorPropsEx
       [props.onActiveStylesChange],
     );
 
-    const combinedStyle = props.style;
+    const combinedStyle = React.useMemo(
+      () => [props.style, nativeHeight ? { minHeight: nativeHeight } : undefined],
+      [props.style, nativeHeight],
+    );
 
     return (
       <RichTextEditorViewNative

@@ -2142,7 +2142,10 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
 
         let sourceImage = image ?? loadImageFromUri(uri)
         let normalizedHeight: CGFloat
-        if let sourceImage = sourceImage, sourceImage.size.width > 0 {
+        if let explicitW = widthFromPayload, let explicitH = heightFromPayload {
+            // Respect explicit dimensions from the block data
+            normalizedHeight = max(1, explicitH * (normalizedWidth / explicitW))
+        } else if let sourceImage = sourceImage, sourceImage.size.width > 0 {
             normalizedHeight = max(1, normalizedWidth * (sourceImage.size.height / sourceImage.size.width))
         } else {
             normalizedHeight = max(1, height ?? heightFromPayload ?? normalizedWidth)
@@ -2654,6 +2657,12 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
                         blockAttrString.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: range)
                     case "strikethrough":
                         blockAttrString.addAttribute(.strikethroughStyle, value: NSUnderlineStyle.single.rawValue, range: range)
+                    case "link":
+                        if let url = style["url"] as? String {
+                            blockAttrString.addAttribute(.link, value: url, range: range)
+                            blockAttrString.addAttribute(.foregroundColor, value: UIColor.systemBlue, range: range)
+                            blockAttrString.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: range)
+                        }
                     default:
                         break
                     }
@@ -2681,6 +2690,11 @@ class RichTextEditorView: UIView, UITextViewDelegate, PHPickerViewControllerDele
 
         textView.scrollRangeToVisible(NSRange(location: endPosition, length: 0))
         updateContentSize()
+
+        DispatchQueue.main.async { [weak self] in
+            self?.textView.layoutIfNeeded()
+            self?.updateContentSize()
+        }
     }
 
     func getText() -> String {
