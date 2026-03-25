@@ -2833,6 +2833,7 @@ class RichTextEditorView: UIView, UITextViewDelegate, UIGestureRecognizerDelegat
         placeholderLabel.isHidden = !textView.text.isEmpty
         isInternalChange = false
         applyListIndentation()
+        detectAllLinks()
 
         let endPosition = textView.text?.count ?? 0
         textView.selectedRange = NSRange(location: endPosition, length: 0)
@@ -2843,6 +2844,31 @@ class RichTextEditorView: UIView, UITextViewDelegate, UIGestureRecognizerDelegat
         DispatchQueue.main.async { [weak self] in
             self?.textView.layoutIfNeeded()
             self?.updateContentSize()
+        }
+    }
+
+    private func detectAllLinks() {
+        guard let text = textView.text, !text.isEmpty else { return }
+        let nsText = text as NSString
+        let fullRange = NSRange(location: 0, length: nsText.length)
+        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return }
+        let matches = detector.matches(in: text, range: fullRange)
+        guard !matches.isEmpty else { return }
+        let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
+        var changed = false
+        for match in matches {
+            guard let url = match.url else { continue }
+            let existingLink = mutable.attribute(.link, at: match.range.location, effectiveRange: nil)
+            if existingLink != nil { continue }
+            mutable.addAttribute(.link, value: url.absoluteString, range: match.range)
+            mutable.addAttribute(.foregroundColor, value: UIColor.systemBlue, range: match.range)
+            mutable.addAttribute(.underlineStyle, value: NSUnderlineStyle.single.rawValue, range: match.range)
+            changed = true
+        }
+        if changed {
+            isInternalChange = true
+            textView.attributedText = mutable
+            isInternalChange = false
         }
     }
 

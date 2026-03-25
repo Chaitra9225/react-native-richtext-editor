@@ -1302,6 +1302,7 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
             setSelection(spannable.length)
         }
         isInternalChange = false
+        detectAllLinks(spannable)
         if (numberOfLinesValue > 0 && !isEditable) {
             scrollTo(0, 0)
             applyEllipsisIfNeeded()
@@ -1311,6 +1312,32 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         post {
             requestLayout()
             post { updateContentSize() }
+        }
+    }
+
+    private fun detectAllLinks(spannable: SpannableStringBuilder) {
+        val text = spannable.toString()
+        if (text.isEmpty()) return
+        val matcher = android.util.Patterns.WEB_URL.matcher(text)
+        var changed = false
+        while (matcher.find()) {
+            val start = matcher.start()
+            val end = matcher.end()
+            val existingLinks = spannable.getSpans(start, end, android.text.style.URLSpan::class.java)
+            if (existingLinks.isNotEmpty()) continue
+            var url = matcher.group()
+            if (!url.startsWith("http://") && !url.startsWith("https://")) {
+                url = "https://$url"
+            }
+            spannable.setSpan(android.text.style.URLSpan(url), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            spannable.setSpan(android.text.style.ForegroundColorSpan(Color.parseColor("#2196F3")), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            spannable.setSpan(UnderlineSpan(), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            changed = true
+        }
+        if (changed) {
+            isInternalChange = true
+            setText(spannable)
+            isInternalChange = false
         }
     }
 
