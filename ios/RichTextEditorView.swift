@@ -500,7 +500,7 @@ class RichTextEditorView: UIView, UITextViewDelegate, UIGestureRecognizerDelegat
     private let textView: RichTextView = {
         let tv = RichTextView()
         tv.font = UIFont.systemFont(ofSize: 16)
-        tv.textContainerInset = UIEdgeInsets(top: 12, left: 8, bottom: 12, right: 8)
+        tv.textContainerInset = UIEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
         tv.translatesAutoresizingMaskIntoConstraints = false
         tv.backgroundColor = .clear
 

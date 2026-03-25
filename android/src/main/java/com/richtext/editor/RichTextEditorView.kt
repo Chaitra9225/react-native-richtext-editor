@@ -145,10 +145,7 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         calculatedHeight = 0f
         bottomBorderPaint.strokeWidth = density
 
-        val paddingHorizontal = (12 * density).toInt()
-        val paddingVertical = (10 * density).toInt()
-
-        setPadding(paddingHorizontal, paddingVertical, paddingHorizontal, paddingVertical)
+        setPadding(0, 0, 0, 0)
         textSize = 16f
         setLineSpacing(0f, 1.3f)  // Consistent line height multiplier
         setTextColor(Color.BLACK)
