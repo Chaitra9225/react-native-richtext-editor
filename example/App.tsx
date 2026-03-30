@@ -104,6 +104,7 @@ function App(): React.JSX.Element {
                     initialContent={sampleContent}
                     variant="plain"
                     style={styles.richTextEditorReadOnly}
+                    maxImageWidth={50}
                   />
                 )}
               </View>
@@ -145,6 +146,7 @@ function App(): React.JSX.Element {
             initialContent={sampleContent}
             variant="flat"
             style={{}}
+            maxImageWidth={50}
           />
         </ScrollView>
 

@@ -58,7 +58,9 @@ export interface NativeProps extends ViewProps {
   variant?: string;
   fontFamily?: string;
   fontSize?: Double;
+  maxImageWidth?: Double;
   initialContentJson?: string;
+  editorConfigJson?: string;
 
   onContentChange?: DirectEventHandler<ContentChangeEventData>;
   onSelectionChange?: DirectEventHandler<SelectionChangeEventData>;

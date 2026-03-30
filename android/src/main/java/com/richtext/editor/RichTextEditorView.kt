@@ -93,7 +93,8 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
                 invalidate()
                 requestLayout()
                 post { updateContentSize() }
-            }
+            },
+            getMaxImageWidthDp = { maxImageWidthDp }
         )
     }
 
@@ -1069,6 +1070,12 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
             null
         }
         applyFont()
+    }
+
+    private var maxImageWidthDp: Float = 0f
+
+    fun setMaxImageWidthValue(value: Float) {
+        maxImageWidthDp = value
     }
 
     fun setFontSizeValue(value: Float) {
@@ -2118,6 +2125,7 @@ class RichTextEditorView(context: Context) : androidx.appcompat.widget.AppCompat
         sendContentChange()
         saveToUndoStack()
         post { updateContentSize() }
+        hideToolbar()
     }
 
     private fun insertMediaAttachmentBlock(uri: String) {

@@ -136,6 +136,7 @@ export interface RichTextEditorProps {
   variant?: EditorVariant;
   fontFamily?: string;
   fontSize?: number;
+  maxImageWidth?: number;
   onContentChange?: (event: ContentChangeEvent) => void;
   onSelectionChange?: (event: SelectionChangeEvent) => void;
   onFocus?: () => void;

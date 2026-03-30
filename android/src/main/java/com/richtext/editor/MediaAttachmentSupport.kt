@@ -22,7 +22,8 @@ class MediaAttachmentSupport(
     private val getTargetWidthPx: () -> Int,
     private val editableProvider: () -> Editable?,
     private val runOnUiThread: ((() -> Unit) -> Unit),
-    private val onMediaSpansUpdated: () -> Unit
+    private val onMediaSpansUpdated: () -> Unit,
+    private val getMaxImageWidthDp: () -> Float = { 0f }
 ) {
 
     private val mediaBitmapCache = mutableMapOf<String, Bitmap>()
@@ -51,7 +52,12 @@ class MediaAttachmentSupport(
     }
 
     fun createMediaAttachmentSpan(mediaData: MediaAttachmentData): MediaAttachmentSpan {
-        val targetWidthPx = getTargetWidthPx().coerceAtLeast(1)
+        val maxDp = getMaxImageWidthDp()
+        var targetWidthPx = getTargetWidthPx().coerceAtLeast(1)
+        if (maxDp > 0f) {
+            val maxWidthPx = (maxDp * density).toInt()
+            targetWidthPx = targetWidthPx.coerceAtMost(maxWidthPx)
+        }
         val loaded = loadBitmapForMedia(mediaData, targetWidthPx)
         return if (loaded != null) {
             val (bitmap, updatedData) = loaded
@@ -187,8 +193,8 @@ class MediaAttachmentSupport(
             extension = inferredMeta.extension,
             contentType = inferredMeta.contentType,
             fileSize = inferredMeta.fileSize,
-            widthDp = 100,
-            heightDp = 100,
+            widthDp = 0,
+            heightDp = 0,
             alt = "Selected image"
         )
     }

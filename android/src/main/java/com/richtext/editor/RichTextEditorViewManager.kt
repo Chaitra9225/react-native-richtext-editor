@@ -142,6 +142,28 @@ class RichTextEditorViewManager : SimpleViewManager<RichTextEditorView>() {
         }
     }
 
+    @ReactProp(name = "maxImageWidth", defaultDouble = 0.0)
+    fun setMaxImageWidth(view: RichTextEditorView, maxImageWidth: Double) {
+        try {
+            view.setMaxImageWidthValue(maxImageWidth.toFloat())
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    @ReactProp(name = "editorConfigJson")
+    fun setEditorConfigJson(view: RichTextEditorView, configJson: String?) {
+        if (configJson.isNullOrEmpty()) return
+        try {
+            val config = org.json.JSONObject(configJson)
+            if (config.has("maxImageWidth")) {
+                view.setMaxImageWidthValue(config.optDouble("maxImageWidth", 0.0).toFloat())
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
     @ReactProp(name = "initialContentJson")
     fun setInitialContentJson(view: RichTextEditorView, initialContentJson: String?) {
         if (initialContentJson.isNullOrEmpty()) return

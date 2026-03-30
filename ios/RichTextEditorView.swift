@@ -624,6 +624,21 @@ class RichTextEditorView: UIView, UITextViewDelegate, UIGestureRecognizerDelegat
         }
     }
 
+    @objc var maxImageWidth: CGFloat = 0
+
+    @objc var editorConfigJson: String? {
+        didSet {
+            guard let jsonString = editorConfigJson,
+                  let data = jsonString.data(using: .utf8),
+                  let config = try? JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] else {
+                return
+            }
+            if let maxWidth = config["maxImageWidth"] as? NSNumber {
+                maxImageWidth = CGFloat(truncating: maxWidth)
+            }
+        }
+    }
+
     private var effectiveFontSize: CGFloat {
         return fontSize > 0 ? fontSize : 16
     }
@@ -2196,6 +2211,7 @@ class RichTextEditorView: UIView, UITextViewDelegate, UIGestureRecognizerDelegat
             alt: "Selected image"
         )
         insertMediaAttachmentBlock(mediaAttachment: mediaAttachment, image: image)
+        hideToolbar()
     }
 
     private func writeImageToTemporaryURL(_ image: UIImage) -> URL? {
@@ -2286,8 +2302,9 @@ class RichTextEditorView: UIView, UITextViewDelegate, UIGestureRecognizerDelegat
             textView.bounds.width - textView.textContainerInset.left - textView.textContainerInset.right - textView.textContainer.lineFragmentPadding * 2
         )
 
-        let fallbackWidth = width ?? widthFromPayload ?? textContainerWidth
-        let normalizedWidth = max(1, min(textContainerWidth, fallbackWidth))
+        let effectiveMaxImageWidth: CGFloat = maxImageWidth > 0 ? maxImageWidth : textContainerWidth
+        let fallbackWidth = width ?? widthFromPayload ?? effectiveMaxImageWidth
+        let normalizedWidth = max(1, min(min(textContainerWidth, effectiveMaxImageWidth), fallbackWidth))
 
         let sourceImage = image ?? loadImageFromUri(uri)
         let normalizedHeight: CGFloat
